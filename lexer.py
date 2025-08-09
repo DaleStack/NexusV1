@@ -42,3 +42,14 @@ def lexer(code):
         tokens.append((kind, value))
 
     return tokens
+
+# Test
+code = '''
+var name = "John"
+say("Hello, "+name)
+if name == "John":
+    say("It's John")
+'''
+
+for token in lexer(code):
+    print(token)
