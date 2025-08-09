@@ -41,24 +41,17 @@ class Parser:
         return self.tokens[self.pos] if self.pos < len(self.tokens) else (None, None)
 
     def eat(self, kind=None):
-        token = self.current()
-        if kind and token[0] != kind:
-            raise SyntaxError(f"Expected {kind} but got {token}")
+        tok = self.current()
+        if kind and tok[0] != kind:
+            raise SyntaxError(f"Expected {kind} but got {tok}")
         self.pos += 1
-        return token
+        return tok
 
     def parse(self):
-        return self.parse_block(top_level=True)
-
-    def parse_block(self, top_level=False):
         statements = []
         while self.pos < len(self.tokens):
             tok_type, _ = self.current()
-
-            if tok_type == "DEDENT" and not top_level:
-                self.eat("DEDENT")
-                break
-            elif tok_type == "VAR":
+            if tok_type == "VAR":
                 statements.append(self.parse_var_decl())
             elif tok_type == "SAY":
                 statements.append(self.parse_say())
@@ -67,11 +60,7 @@ class Parser:
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
             else:
-                # Skip unexpected tokens at top level
-                if top_level:
-                    self.pos += 1
-                else:
-                    break
+                self.pos += 1
         return statements
 
     def parse_var_decl(self):
@@ -87,8 +76,6 @@ class Parser:
         self.eat("SAY")
         self.eat("PUNCT")  # (
         expr = self.parse_expression()
-        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
-            raise SyntaxError(f"Expected closing ')' but got {self.current()}")
         self.eat("PUNCT")  # )
         return SayStmt(expr)
 
@@ -107,6 +94,21 @@ class Parser:
             self.eat("INDENT")
             else_body = self.parse_block()
         return IfStmt(condition, body, else_body)
+
+    def parse_block(self):
+        statements = []
+        while self.current()[0] not in ("DEDENT", None):
+            tok_type, _ = self.current()
+            if tok_type == "VAR":
+                statements.append(self.parse_var_decl())
+            elif tok_type == "SAY":
+                statements.append(self.parse_say())
+            elif tok_type == "NEWLINE":
+                self.eat("NEWLINE")
+            else:
+                self.pos += 1
+        self.eat("DEDENT")
+        return statements
 
     # Expression parsing
     def parse_expression(self):
