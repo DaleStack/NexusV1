@@ -46,6 +46,11 @@ class BreakStmt:
 class ContinueStmt:
     pass
 
+class AskStmt:
+    def __init__(self, prompt_expr, var_name=None):
+        self.prompt_expr = prompt_expr  # expression for the prompt string
+        self.var_name = var_name        # optional variable name to assign input
+
 
 class Parser:
     def __init__(self, tokens):
@@ -80,6 +85,8 @@ class Parser:
                 statements.append(self.parse_continue())
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
+            elif tok_type == "ASK":
+                statements.append(self.parse_ask())
             else:
                 self.pos += 1
         return statements
@@ -185,6 +192,26 @@ class Parser:
         if self.current()[0] == "NEWLINE":
             self.eat("NEWLINE")
         return ContinueStmt()
+    
+    def parse_ask(self):
+        self.eat("ASK")
+        self.eat("PUNCT")  # (
+        prompt_expr = self.parse_expression()
+        self.eat("PUNCT")  # )
+        return AskStmt(prompt_expr)
+    
+    def parse_var_decl(self):
+        self.eat("VAR")
+        _, name = self.eat("ID")
+        value = None
+        if self.current()[0] == "OP" and self.current()[1] == "=":
+            self.eat("OP")
+            # Check if next token is ASK keyword
+            if self.current()[0] == "ASK":
+                value = self.parse_ask()
+            else:
+                value = self.parse_expression()
+        return VarDecl(name, value)
 
     def parse_block(self):
         statements = []

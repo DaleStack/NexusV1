@@ -1,5 +1,6 @@
 from lexer import lexer
-from parser import Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt, BreakStmt, ContinueStmt
+from parser import Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt, BreakStmt, ContinueStmt, AskStmt
+
 
 # Custom exceptions for control flow
 class BreakException(Exception):
@@ -63,28 +64,46 @@ class Interpreter:
 
     def exec_stmt(self, node):
         if isinstance(node, VarDecl):
-            self.env[node.name] = self.eval_expr(node.value)
+            # If the value is an AskStmt, perform input and assign result
+            if isinstance(node.value, AskStmt):
+                prompt = self.eval_expr(node.value.prompt_expr)
+                user_input = input(str(prompt))
+                self.env[node.name] = user_input
+            else:
+                self.env[node.name] = self.eval_expr(node.value)
+
         elif isinstance(node, SayStmt):
             print(self.eval_expr(node.expr))
+
         elif isinstance(node, IfStmt):
             if self.eval_expr(node.condition):
                 for stmt in node.body:
                     self.exec_stmt(stmt)
             elif node.else_body:
-                # else_body can be a list or a single IfStmt (for else-if)
                 if isinstance(node.else_body, list):
                     for stmt in node.else_body:
                         self.exec_stmt(stmt)
                 else:
                     self.exec_stmt(node.else_body)
+
         elif isinstance(node, ForStmt):
             self.exec_for(node)
+
         elif isinstance(node, BreakStmt):
             raise BreakException()
+
         elif isinstance(node, ContinueStmt):
             raise ContinueException()
+
+        elif isinstance(node, AskStmt):
+            # Standalone ask: prompt and ignore result
+            prompt = self.eval_expr(node.prompt_expr)
+            input(str(prompt))
+
         else:
             raise TypeError(f"Unknown statement node: {node}")
+
+
 
     def exec_for(self, node: ForStmt):
         if node.infinite:
@@ -131,10 +150,9 @@ class Interpreter:
 
 if __name__ == "__main__":
     code = '''
-for i in (5 to 0 by -1):
-    if i == 2:
-        break
-    say(i)
+var a = ask("Enter First Name: ")
+var b = ask("Enter Second Name: ")
+say(a +" "+ b)
 '''
     tokens = lexer(code)
     parser = Parser(tokens)
