@@ -11,3 +11,11 @@ TOKEN_SPEC = [
     ("SKIP",     r"[ \t]+"),        # Spaces/tabs
     ("COMMENT",  r"#.*"),           # Comment
 ]
+
+# Combine into regex
+TOKEN_REGEX = "|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC)
+
+KEYWORDS = {
+    "var", "say", "ask", "if", "else", "for", "inclusive",
+    "by", "break", "continue", "func", "return", "true", "false"
+}
