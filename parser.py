@@ -267,6 +267,11 @@ class Parser:
             self.eat()
             right = self.parse_unary()
             return BinaryOp(None, "not", right)
+        elif tok_type == "OP" and tok_value == "-":
+            self.eat()
+            right = self.parse_unary()
+            # Treat unary minus as BinaryOp with left=None, op='-', right=right
+            return BinaryOp(None, "-", right)
         else:
             return self.parse_primary()
 

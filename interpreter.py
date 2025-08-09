@@ -1,6 +1,12 @@
 from lexer import lexer
-from parser import Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt
+from parser import Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt, BreakStmt, ContinueStmt
 
+# Custom exceptions for control flow
+class BreakException(Exception):
+    pass
+
+class ContinueException(Exception):
+    pass
 
 class Interpreter:
     def __init__(self):
@@ -21,7 +27,11 @@ class Interpreter:
             if op == "+":
                 return left + right
             elif op == "-":
-                return left - right
+                # Handle unary minus if left is None
+                if left is None:
+                    return -right
+                else:
+                    return left - right
             elif op == "*":
                 return left * right
             elif op == "/":
@@ -61,11 +71,58 @@ class Interpreter:
                 for stmt in node.body:
                     self.exec_stmt(stmt)
             elif node.else_body:
-                for stmt in node.else_body:
-                    self.exec_stmt(stmt)
+                # else_body can be a list or a single IfStmt (for else-if)
+                if isinstance(node.else_body, list):
+                    for stmt in node.else_body:
+                        self.exec_stmt(stmt)
+                else:
+                    self.exec_stmt(node.else_body)
+        elif isinstance(node, ForStmt):
+            self.exec_for(node)
+        elif isinstance(node, BreakStmt):
+            raise BreakException()
+        elif isinstance(node, ContinueStmt):
+            raise ContinueException()
         else:
             raise TypeError(f"Unknown statement node: {node}")
 
+    def exec_for(self, node: ForStmt):
+        if node.infinite:
+            while True:
+                try:
+                    for stmt in node.body:
+                        self.exec_stmt(stmt)
+                except BreakException:
+                    break
+                except ContinueException:
+                    continue
+        else:
+            start = self.eval_expr(node.start)
+            end = self.eval_expr(node.end)
+            step = self.eval_expr(node.step)
+            var = node.var_name
+
+            if step == 0:
+                raise ValueError("Step cannot be zero in for loop.")
+
+            def loop_condition(i):
+                if step > 0:
+                    return i <= end if node.inclusive else i < end
+                else:
+                    return i >= end if node.inclusive else i > end
+
+            i = start
+            while loop_condition(i):
+                self.env[var] = i
+                try:
+                    for stmt in node.body:
+                        self.exec_stmt(stmt)
+                except BreakException:
+                    break
+                except ContinueException:
+                    i += step
+                    continue
+                i += step
 
     def run(self, ast):
         for stmt in ast:
@@ -74,14 +131,10 @@ class Interpreter:
 
 if __name__ == "__main__":
     code = '''
-var name = "Bob"
-
-if name == "John":
-    say("It's John")
-else if name == "Bob":
-    say("It's Bob")
-else:
-    say("Someone else")
+for i in (5 to 0 by -1):
+    if i == 2:
+        break
+    say(i)
 '''
     tokens = lexer(code)
     parser = Parser(tokens)
