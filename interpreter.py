@@ -224,12 +224,10 @@ class Interpreter:
 
 if __name__ == "__main__":
     code = '''
-func factorial(n):
-    if n <= 1:
-        return 1
-    return n * factorial(n - 1)
+func greeting():
+    say("Hello, people!")
 
-say(factorial(5))
+greeting()
 '''
     tokens = lexer(code)
     parser = Parser(tokens)
