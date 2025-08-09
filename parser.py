@@ -48,17 +48,30 @@ class Parser:
         return token
 
     def parse(self):
+        return self.parse_block(top_level=True)
+
+    def parse_block(self, top_level=False):
         statements = []
         while self.pos < len(self.tokens):
             tok_type, _ = self.current()
-            if tok_type == "VAR":
+
+            if tok_type == "DEDENT" and not top_level:
+                self.eat("DEDENT")
+                break
+            elif tok_type == "VAR":
                 statements.append(self.parse_var_decl())
             elif tok_type == "SAY":
                 statements.append(self.parse_say())
             elif tok_type == "IF":
                 statements.append(self.parse_if())
+            elif tok_type == "NEWLINE":
+                self.eat("NEWLINE")
             else:
-                self.pos += 1
+                # Skip unexpected tokens at top level
+                if top_level:
+                    self.pos += 1
+                else:
+                    break
         return statements
 
     def parse_var_decl(self):
@@ -74,6 +87,8 @@ class Parser:
         self.eat("SAY")
         self.eat("PUNCT")  # (
         expr = self.parse_expression()
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            raise SyntaxError(f"Expected closing ')' but got {self.current()}")
         self.eat("PUNCT")  # )
         return SayStmt(expr)
 
@@ -81,20 +96,89 @@ class Parser:
         self.eat("IF")
         condition = self.parse_expression()
         self.eat("PUNCT")  # :
-        body = [self.parse_say()]  # TODO: make this handle multiple statements
-        return IfStmt(condition, body)
+        self.eat("NEWLINE")
+        self.eat("INDENT")
+        body = self.parse_block()
+        else_body = None
+        if self.current()[0] == "ELSE":
+            self.eat("ELSE")
+            self.eat("PUNCT")  # :
+            self.eat("NEWLINE")
+            self.eat("INDENT")
+            else_body = self.parse_block()
+        return IfStmt(condition, body, else_body)
 
+    # Expression parsing
     def parse_expression(self):
-        left = self.parse_term()
-        while self.current()[0] == "OP":
+        return self.parse_or()
+
+    def parse_or(self):
+        node = self.parse_and()
+        while self.current()[0] == "OP" and self.current()[1] == "or":
+            _, op = self.eat("OP")
+            right = self.parse_and()
+            node = BinaryOp(node, op, right)
+        return node
+
+    def parse_and(self):
+        node = self.parse_equality()
+        while self.current()[0] == "OP" and self.current()[1] == "and":
+            _, op = self.eat("OP")
+            right = self.parse_equality()
+            node = BinaryOp(node, op, right)
+        return node
+
+    def parse_equality(self):
+        node = self.parse_comparison()
+        while self.current()[0] == "OP" and self.current()[1] in ("==", "!="):
+            _, op = self.eat("OP")
+            right = self.parse_comparison()
+            node = BinaryOp(node, op, right)
+        return node
+
+    def parse_comparison(self):
+        node = self.parse_term()
+        while self.current()[0] == "OP" and self.current()[1] in ("<", ">", "<=", ">="):
             _, op = self.eat("OP")
             right = self.parse_term()
-            left = BinaryOp(left, op, right)
-        return left
+            node = BinaryOp(node, op, right)
+        return node
 
     def parse_term(self):
+        node = self.parse_factor()
+        while self.current()[0] == "OP" and self.current()[1] in ("+", "-"):
+            _, op = self.eat("OP")
+            right = self.parse_factor()
+            node = BinaryOp(node, op, right)
+        return node
+
+    def parse_factor(self):
+        node = self.parse_unary()
+        while self.current()[0] == "OP" and self.current()[1] in ("*", "/", "%"):
+            _, op = self.eat("OP")
+            right = self.parse_unary()
+            node = BinaryOp(node, op, right)
+        return node
+
+    def parse_unary(self):
         tok_type, tok_value = self.current()
-        if tok_type in ("NUMBER", "STRING"):
+        if tok_type == "OP" and tok_value == "not":
+            self.eat()
+            right = self.parse_unary()
+            return BinaryOp(None, "not", right)
+        else:
+            return self.parse_primary()
+
+    def parse_primary(self):
+        tok_type, tok_value = self.current()
+        if tok_type == "PUNCT" and tok_value == "(":
+            self.eat("PUNCT")
+            expr = self.parse_expression()
+            if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+                raise SyntaxError(f"Expected ')' but got {self.current()}")
+            self.eat("PUNCT")
+            return expr
+        elif tok_type in ("NUMBER", "STRING"):
             self.eat()
             return Literal(tok_value)
         elif tok_type == "ID":
@@ -105,13 +189,15 @@ class Parser:
 
 
 if __name__ == "__main__":
-    # Simple test
     code = '''
-    var name = "John"
-    say("Hello, "+name)
-    if name == "John":
-        say("It's John")
-    '''
+var name = "John"
+say("Hello, " + name)
+if name == "John":
+    say("It's John")
+    say("Another line")
+else:
+    say("Not John")
+'''
     tokens = lexer(code)
     parser = Parser(tokens)
     ast = parser.parse()

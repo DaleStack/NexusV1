@@ -11,28 +11,30 @@ class Interpreter:
         elif isinstance(node, VarRef):
             return self.env.get(node.name, None)
         elif isinstance(node, BinaryOp):
+            # Handle unary 'not' operator
+            if node.op == 'not':
+                return not bool(self.eval_expr(node.right))
+            
+            # Handle binary operators
             left = self.eval_expr(node.left)
             right = self.eval_expr(node.right)
-            if node.op == '+':
-                return left + right
-            elif node.op == '-':
-                return left - right
-            elif node.op == '*':
-                return left * right
-            elif node.op == '/':
-                return left / right
-            elif node.op == '==':
-                return left == right
-            elif node.op == '!=':
-                return left != right
-            elif node.op == '>':
-                return left > right
-            elif node.op == '<':
-                return left < right
-            elif node.op == '>=':
-                return left >= right
-            elif node.op == '<=':
-                return left <= right
+
+            if node.op == '+': return left + right
+            if node.op == '-': return left - right
+            if node.op == '*': return left * right
+            if node.op == '/': return left / right
+            if node.op == '%': return left % right
+
+            if node.op == '==': return left == right
+            if node.op == '!=': return left != right
+            if node.op == '<': return left < right
+            if node.op == '>': return left > right
+            if node.op == '<=': return left <= right
+            if node.op == '>=': return left >= right
+
+            if node.op == 'and': return bool(left) and bool(right)
+            if node.op == 'or': return bool(left) or bool(right)
+
         else:
             raise RuntimeError(f"Unknown expression: {node}")
 
@@ -57,15 +59,46 @@ class Interpreter:
 
 
 if __name__ == "__main__":
-    code = '''
+    # Test with string concatenation first
+    code1 = '''
     var name = "John"
     say("Hello, " + name)
     if name == "John":
         say("It's John")
     '''
-    tokens = lexer(code)
+    
+    print("=== Test 1: String operations ===")
+    tokens = lexer(code1)
+    for token in tokens:
+        print(token)
+    
     parser = Parser(tokens)
     ast = parser.parse()
-
     interpreter = Interpreter()
     interpreter.run(ast)
+    
+    print("\n=== Test 2: Math operations ===")
+    # Test with math operations
+    code2 = """
+    var x = 10
+    var y = 3
+
+    say(x + y)
+    say(x - y) 
+    say(x * y)
+    say(x / y)
+    say(x % y)
+
+    if x > y and y != 0:
+        say("Valid math")
+
+    if not (x < y):
+        say("x is not less than y")
+    """
+    
+    tokens2 = lexer(code2)
+    parser2 = Parser(tokens2)
+    ast2 = parser2.parse()
+
+    interpreter2 = Interpreter()
+    interpreter2.run(ast2)
