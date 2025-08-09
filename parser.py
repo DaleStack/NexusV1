@@ -87,13 +87,21 @@ class Parser:
         self.eat("INDENT")
         body = self.parse_block()
         else_body = None
+
         if self.current()[0] == "ELSE":
             self.eat("ELSE")
-            self.eat("PUNCT")  # :
-            self.eat("NEWLINE")
-            self.eat("INDENT")
-            else_body = self.parse_block()
+
+            # Check if next token is IF → handle else-if
+            if self.current()[0] == "IF":
+                else_body = [self.parse_if()]  # parse nested if, wrap in list for consistency
+            else:
+                self.eat("PUNCT")  # :
+                self.eat("NEWLINE")
+                self.eat("INDENT")
+                else_body = self.parse_block()
+
         return IfStmt(condition, body, else_body)
+
 
     def parse_block(self):
         statements = []

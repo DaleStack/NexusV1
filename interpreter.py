@@ -1,46 +1,59 @@
 from lexer import lexer
-from parser import Parser, VarDecl, SayStmt, IfStmt, BinaryOp, Literal, VarRef
+from parser import Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt
+
 
 class Interpreter:
     def __init__(self):
-        self.env = {}  # Stores variables
+        self.env = {}
 
     def eval_expr(self, node):
         if isinstance(node, Literal):
             return node.value
         elif isinstance(node, VarRef):
-            return self.env.get(node.name, None)
+            if node.name in self.env:
+                return self.env[node.name]
+            else:
+                raise NameError(f"Undefined variable '{node.name}'")
         elif isinstance(node, BinaryOp):
-            # Handle unary 'not' operator
-            if node.op == 'not':
-                return not bool(self.eval_expr(node.right))
-            
-            # Handle binary operators
-            left = self.eval_expr(node.left)
+            left = self.eval_expr(node.left) if node.left else None
             right = self.eval_expr(node.right)
-
-            if node.op == '+': return left + right
-            if node.op == '-': return left - right
-            if node.op == '*': return left * right
-            if node.op == '/': return left / right
-            if node.op == '%': return left % right
-
-            if node.op == '==': return left == right
-            if node.op == '!=': return left != right
-            if node.op == '<': return left < right
-            if node.op == '>': return left > right
-            if node.op == '<=': return left <= right
-            if node.op == '>=': return left >= right
-
-            if node.op == 'and': return bool(left) and bool(right)
-            if node.op == 'or': return bool(left) or bool(right)
-
+            op = node.op
+            if op == "+":
+                return left + right
+            elif op == "-":
+                return left - right
+            elif op == "*":
+                return left * right
+            elif op == "/":
+                return left / right
+            elif op == "%":
+                return left % right
+            elif op == "==":
+                return left == right
+            elif op == "!=":
+                return left != right
+            elif op == "<":
+                return left < right
+            elif op == "<=":
+                return left <= right
+            elif op == ">":
+                return left > right
+            elif op == ">=":
+                return left >= right
+            elif op == "and":
+                return left and right
+            elif op == "or":
+                return left or right
+            elif op == "not":
+                return not right
+            else:
+                raise ValueError(f"Unknown operator: {op}")
         else:
-            raise RuntimeError(f"Unknown expression: {node}")
+            raise TypeError(f"Unknown expression node: {node}")
 
     def exec_stmt(self, node):
         if isinstance(node, VarDecl):
-            self.env[node.name] = self.eval_expr(node.value) if node.value else None
+            self.env[node.name] = self.eval_expr(node.value)
         elif isinstance(node, SayStmt):
             print(self.eval_expr(node.expr))
         elif isinstance(node, IfStmt):
@@ -51,54 +64,27 @@ class Interpreter:
                 for stmt in node.else_body:
                     self.exec_stmt(stmt)
         else:
-            raise RuntimeError(f"Unknown statement: {node}")
+            raise TypeError(f"Unknown statement node: {node}")
+
 
     def run(self, ast):
-        for node in ast:
-            self.exec_stmt(node)
+        for stmt in ast:
+            self.exec_stmt(stmt)
 
 
 if __name__ == "__main__":
-    # Test with string concatenation first
-    code1 = '''
-    var name = "John"
-    say("Hello, " + name)
-    if name == "John":
-        say("It's John")
-    '''
-    
-    print("=== Test 1: String operations ===")
-    tokens = lexer(code1)
-    for token in tokens:
-        print(token)
-    
+    code = '''
+var name = "Bob"
+
+if name == "John":
+    say("It's John")
+else if name == "Bob":
+    say("It's Bob")
+else:
+    say("Someone else")
+'''
+    tokens = lexer(code)
     parser = Parser(tokens)
     ast = parser.parse()
     interpreter = Interpreter()
     interpreter.run(ast)
-    
-    print("\n=== Test 2: Math operations ===")
-    # Test with math operations
-    code2 = """
-    var x = 10
-    var y = 3
-
-    say(x + y)
-    say(x - y) 
-    say(x * y)
-    say(x / y)
-    say(x % y)
-
-    if x > y and y != 0:
-        say("Valid math")
-
-    if not (x < y):
-        say("x is not less than y")
-    """
-    
-    tokens2 = lexer(code2)
-    parser2 = Parser(tokens2)
-    ast2 = parser2.parse()
-
-    interpreter2 = Interpreter()
-    interpreter2.run(ast2)
