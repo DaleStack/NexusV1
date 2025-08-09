@@ -1,4 +1,3 @@
-# parser.py
 from lexer import lexer
 
 # AST Node classes
@@ -31,6 +30,22 @@ class VarRef:
     def __init__(self, name):
         self.name = name
 
+class ForStmt:
+    def __init__(self, var_name, start, end, step, body, inclusive=False, infinite=False):
+        self.var_name = var_name          # string or None if infinite loop
+        self.start = start                # expressions
+        self.end = end
+        self.step = step
+        self.body = body                  # list of statements
+        self.inclusive = inclusive
+        self.infinite = infinite
+
+class BreakStmt:
+    pass
+
+class ContinueStmt:
+    pass
+
 
 class Parser:
     def __init__(self, tokens):
@@ -57,6 +72,12 @@ class Parser:
                 statements.append(self.parse_say())
             elif tok_type == "IF":
                 statements.append(self.parse_if())
+            elif tok_type == "FOR":
+                statements.append(self.parse_for())
+            elif tok_type == "BREAK":
+                statements.append(self.parse_break())
+            elif tok_type == "CONTINUE":
+                statements.append(self.parse_continue())
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
             else:
@@ -93,7 +114,7 @@ class Parser:
 
             # Check if next token is IF → handle else-if
             if self.current()[0] == "IF":
-                else_body = [self.parse_if()]  # parse nested if, wrap in list for consistency
+                else_body = [self.parse_if()]  # parse nested if, wrap in list
             else:
                 self.eat("PUNCT")  # :
                 self.eat("NEWLINE")
@@ -102,6 +123,68 @@ class Parser:
 
         return IfStmt(condition, body, else_body)
 
+    def parse_for(self):
+        self.eat("FOR")
+
+        # Infinite loop: for:
+        if self.current()[0] == "PUNCT" and self.current()[1] == ":":
+            self.eat("PUNCT")  # :
+            self.eat("NEWLINE")
+            self.eat("INDENT")
+            body = self.parse_block()
+            return ForStmt(None, None, None, None, body, infinite=True)
+
+        _, var_name = self.eat("ID")
+
+        # Expect "IN" keyword token (likely token kind = "IN")
+        if self.current()[0] == "IN":
+            self.eat("IN")
+        else:
+            raise SyntaxError(f"Expected 'in' after for variable but got {self.current()}")
+
+        self.eat("PUNCT")  # (
+
+        inclusive = False
+        if self.current()[0] == "INCLUSIVE":
+            self.eat("INCLUSIVE")
+            inclusive = True
+
+        start = self.parse_expression()
+
+        # Expect "TO" keyword token
+        if self.current()[0] == "TO":
+            self.eat("TO")
+        else:
+            raise SyntaxError(f"Expected 'to' in for loop range but got {self.current()}")
+
+        end = self.parse_expression()
+
+        step = Literal(1)  # default step
+        if self.current()[0] == "BY":
+            self.eat("BY")
+            step = self.parse_expression()
+
+        self.eat("PUNCT")  # )
+
+        self.eat("PUNCT")  # :
+        self.eat("NEWLINE")
+        self.eat("INDENT")
+        body = self.parse_block()
+
+        return ForStmt(var_name, start, end, step, body, inclusive=inclusive)
+
+
+    def parse_break(self):
+        self.eat("BREAK")
+        if self.current()[0] == "NEWLINE":
+            self.eat("NEWLINE")
+        return BreakStmt()
+
+    def parse_continue(self):
+        self.eat("CONTINUE")
+        if self.current()[0] == "NEWLINE":
+            self.eat("NEWLINE")
+        return ContinueStmt()
 
     def parse_block(self):
         statements = []
@@ -111,6 +194,14 @@ class Parser:
                 statements.append(self.parse_var_decl())
             elif tok_type == "SAY":
                 statements.append(self.parse_say())
+            elif tok_type == "IF":
+                statements.append(self.parse_if())
+            elif tok_type == "FOR":
+                statements.append(self.parse_for())
+            elif tok_type == "BREAK":
+                statements.append(self.parse_break())
+            elif tok_type == "CONTINUE":
+                statements.append(self.parse_continue())
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
             else:
@@ -118,7 +209,7 @@ class Parser:
         self.eat("DEDENT")
         return statements
 
-    # Expression parsing
+    # Expression parsing methods omitted for brevity (unchanged) ...
     def parse_expression(self):
         return self.parse_or()
 
@@ -200,16 +291,23 @@ class Parser:
 
 if __name__ == "__main__":
     code = '''
-var name = "John"
-say("Hello, " + name)
-if name == "John":
-    say("It's John")
-    say("Another line")
-else:
-    say("Not John")
+for i in (0 to 5 by 1):
+    say(i)
+    if i == 3:
+        break
+
+for j in (inclusive 3 to 6 by 1):
+    say(j)
+    if j == 5:
+        continue
+    say("After continue")
+
+for:
+    say("Infinite loop")
+    break
 '''
     tokens = lexer(code)
     parser = Parser(tokens)
     ast = parser.parse()
     for node in ast:
-        print(node.__class__.__name__, vars(node))
+        print(node.__class__.__name__, vars(node) if hasattr(node, '__dict__') else node)

@@ -3,12 +3,16 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var name = "Bob"
+var name = "Kei"
+
+say(2*4)
 
 if name == "John":
     say("It's John")
 else if name == "Bob":
     say("It's Bob")
+else if name == "Kei":
+    say("Hello my creator!")
 else: 
     say("Someone else")
 '''

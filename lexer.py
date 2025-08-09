@@ -16,7 +16,8 @@ TOKEN_REGEX = "|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC)
 
 KEYWORDS = {
     "var", "say", "ask", "if", "else", "for", "inclusive",
-    "by", "break", "continue", "func", "return", "true", "false"
+    "by", "break", "continue", "func", "return", "true", "false",
+    "in", "to"
 }
 
 def lexer(code):
