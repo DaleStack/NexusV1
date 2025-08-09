@@ -51,6 +51,22 @@ class AskStmt:
         self.prompt_expr = prompt_expr  # expression for the prompt string
         self.var_name = var_name        # optional variable name to assign input
 
+class FuncDecl:
+    def __init__(self, name, params, body):
+        self.name = name          # string
+        self.params = params      # list of param names (strings)
+        self.body = body          # list of statements
+
+class FuncCall:
+    def __init__(self, name, args):
+        self.name = name          # string
+        self.args = args          # list of expressions
+
+class ReturnStmt:
+    def __init__(self, expr):
+        self.expr = expr          # expression node or None
+
+
 
 class Parser:
     def __init__(self, tokens):
@@ -60,17 +76,19 @@ class Parser:
     def current(self):
         return self.tokens[self.pos] if self.pos < len(self.tokens) else (None, None)
 
-    def eat(self, kind=None):
+    def eat(self, kind=None, value=None):
         tok = self.current()
         if kind and tok[0] != kind:
-            raise SyntaxError(f"Expected {kind} but got {tok}")
+            raise SyntaxError(f"Expected token type {kind} but got {tok}")
+        if value and tok[1] != value:
+            raise SyntaxError(f"Expected token value '{value}' but got {tok}")
         self.pos += 1
         return tok
 
     def parse(self):
         statements = []
         while self.pos < len(self.tokens):
-            tok_type, _ = self.current()
+            tok_type, tok_val = self.current()
             if tok_type == "VAR":
                 statements.append(self.parse_var_decl())
             elif tok_type == "SAY":
@@ -83,10 +101,22 @@ class Parser:
                 statements.append(self.parse_break())
             elif tok_type == "CONTINUE":
                 statements.append(self.parse_continue())
-            elif tok_type == "NEWLINE":
-                self.eat("NEWLINE")
             elif tok_type == "ASK":
                 statements.append(self.parse_ask())
+            elif tok_type == "FUNC":          # <-- Add this
+                statements.append(self.parse_func_decl())
+            elif tok_type == "RETURN":
+                statements.append(self.parse_return())
+            elif tok_type == "ID":
+                # Could be a function call or a variable reference
+                # Peek next token to check if it's '('
+                next_tok = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else (None, None)
+                if next_tok[0] == "PUNCT" and next_tok[1] == "(":
+                    statements.append(self.parse_func_call())
+                else:
+                    self.pos += 1  # Skip or raise error depending on your grammar
+            elif tok_type == "NEWLINE":
+                self.eat("NEWLINE")
             else:
                 self.pos += 1
         return statements
@@ -97,20 +127,23 @@ class Parser:
         value = None
         if self.current()[0] == "OP" and self.current()[1] == "=":
             self.eat("OP")
-            value = self.parse_expression()
+            if self.current()[0] == "ASK":
+                value = self.parse_ask()
+            else:
+                value = self.parse_expression()
         return VarDecl(name, value)
 
     def parse_say(self):
         self.eat("SAY")
-        self.eat("PUNCT")  # (
+        self.eat("PUNCT", "(")
         expr = self.parse_expression()
-        self.eat("PUNCT")  # )
+        self.eat("PUNCT", ")")
         return SayStmt(expr)
 
     def parse_if(self):
         self.eat("IF")
         condition = self.parse_expression()
-        self.eat("PUNCT")  # :
+        self.eat("PUNCT", ":")
         self.eat("NEWLINE")
         self.eat("INDENT")
         body = self.parse_block()
@@ -118,12 +151,11 @@ class Parser:
 
         if self.current()[0] == "ELSE":
             self.eat("ELSE")
-
-            # Check if next token is IF → handle else-if
+            # Handle else-if as nested if inside else_body list
             if self.current()[0] == "IF":
-                else_body = [self.parse_if()]  # parse nested if, wrap in list
+                else_body = [self.parse_if()]
             else:
-                self.eat("PUNCT")  # :
+                self.eat("PUNCT", ":")
                 self.eat("NEWLINE")
                 self.eat("INDENT")
                 else_body = self.parse_block()
@@ -133,24 +165,20 @@ class Parser:
     def parse_for(self):
         self.eat("FOR")
 
-        # Infinite loop: for:
         if self.current()[0] == "PUNCT" and self.current()[1] == ":":
-            self.eat("PUNCT")  # :
+            # Infinite loop
+            self.eat("PUNCT", ":")
             self.eat("NEWLINE")
             self.eat("INDENT")
             body = self.parse_block()
             return ForStmt(None, None, None, None, body, infinite=True)
 
         _, var_name = self.eat("ID")
-
-        # Expect "IN" keyword token (likely token kind = "IN")
-        if self.current()[0] == "IN":
-            self.eat("IN")
-        else:
+        if self.current()[0] != "IN":
             raise SyntaxError(f"Expected 'in' after for variable but got {self.current()}")
+        self.eat("IN")
 
-        self.eat("PUNCT")  # (
-
+        self.eat("PUNCT", "(")
         inclusive = False
         if self.current()[0] == "INCLUSIVE":
             self.eat("INCLUSIVE")
@@ -158,28 +186,24 @@ class Parser:
 
         start = self.parse_expression()
 
-        # Expect "TO" keyword token
-        if self.current()[0] == "TO":
-            self.eat("TO")
-        else:
+        if self.current()[0] != "TO":
             raise SyntaxError(f"Expected 'to' in for loop range but got {self.current()}")
+        self.eat("TO")
 
         end = self.parse_expression()
 
-        step = Literal(1)  # default step
+        step = Literal(1)
         if self.current()[0] == "BY":
             self.eat("BY")
             step = self.parse_expression()
 
-        self.eat("PUNCT")  # )
-
-        self.eat("PUNCT")  # :
+        self.eat("PUNCT", ")")
+        self.eat("PUNCT", ":")
         self.eat("NEWLINE")
         self.eat("INDENT")
         body = self.parse_block()
 
         return ForStmt(var_name, start, end, step, body, inclusive=inclusive)
-
 
     def parse_break(self):
         self.eat("BREAK")
@@ -192,26 +216,60 @@ class Parser:
         if self.current()[0] == "NEWLINE":
             self.eat("NEWLINE")
         return ContinueStmt()
-    
+
     def parse_ask(self):
         self.eat("ASK")
-        self.eat("PUNCT")  # (
+        self.eat("PUNCT", "(")
         prompt_expr = self.parse_expression()
-        self.eat("PUNCT")  # )
+        self.eat("PUNCT", ")")
         return AskStmt(prompt_expr)
     
-    def parse_var_decl(self):
-        self.eat("VAR")
+    def parse_return(self):
+        self.eat("RETURN")
+        expr = None
+        if self.current()[0] != "NEWLINE":
+            expr = self.parse_expression()
+        if self.current()[0] == "NEWLINE":
+            self.eat("NEWLINE")
+        return ReturnStmt(expr)
+    
+    def parse_func_decl(self):
+        self.eat("FUNC")
         _, name = self.eat("ID")
-        value = None
-        if self.current()[0] == "OP" and self.current()[1] == "=":
-            self.eat("OP")
-            # Check if next token is ASK keyword
-            if self.current()[0] == "ASK":
-                value = self.parse_ask()
-            else:
-                value = self.parse_expression()
-        return VarDecl(name, value)
+        self.eat("PUNCT", "(")
+        
+        params = []
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            while True:
+                _, param = self.eat("ID")
+                params.append(param)
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        self.eat("PUNCT", ")")
+        self.eat("PUNCT", ":")
+        self.eat("NEWLINE")
+        self.eat("INDENT")
+        body = self.parse_block()
+        return FuncDecl(name, params, body)
+    
+    def parse_func_call(self):
+        _, name = self.eat("ID")
+        self.eat("PUNCT", "(")
+        args = []
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            while True:
+                arg = self.parse_expression()
+                args.append(arg)
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        self.eat("PUNCT", ")")
+        if self.current()[0] == "NEWLINE":
+            self.eat("NEWLINE")
+        return FuncCall(name, args)
 
     def parse_block(self):
         statements = []
@@ -229,6 +287,14 @@ class Parser:
                 statements.append(self.parse_break())
             elif tok_type == "CONTINUE":
                 statements.append(self.parse_continue())
+            elif tok_type == "ASK":
+                statements.append(self.parse_ask())
+            elif tok_type == "FUNC":                # <-- Add here if nested functions allowed
+                statements.append(self.parse_func_decl())
+            elif tok_type == "RETURN":
+                statements.append(self.parse_return())
+            elif tok_type == "ID":                  # <-- ADD THIS CASE
+                statements.append(self.parse_func_call())
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
             else:
@@ -304,39 +370,50 @@ class Parser:
 
     def parse_primary(self):
         tok_type, tok_value = self.current()
+
         if tok_type == "PUNCT" and tok_value == "(":
-            self.eat("PUNCT")
+            self.eat("PUNCT", "(")
             expr = self.parse_expression()
-            if self.current()[0] != "PUNCT" or self.current()[1] != ")":
-                raise SyntaxError(f"Expected ')' but got {self.current()}")
-            self.eat("PUNCT")
+            self.eat("PUNCT", ")")
             return expr
-        elif tok_type in ("NUMBER", "STRING"):
+
+        elif tok_type == "NUMBER" or tok_type == "STRING":
             self.eat()
             return Literal(tok_value)
+
         elif tok_type == "ID":
             self.eat()
-            return VarRef(tok_value)
+            # Peek next token to see if this is a function call
+            if self.current()[0] == "PUNCT" and self.current()[1] == "(":
+                # It's a function call expression
+                return self.parse_func_call_expr(tok_value)
+            else:
+                return VarRef(tok_value)
+
         else:
-            raise SyntaxError(f"Unexpected token: {tok_type}")
+            raise SyntaxError(f"Unexpected token: {tok_type} {tok_value}")
+
+    def parse_func_call_expr(self, func_name):
+        self.eat("PUNCT", "(")
+        args = []
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            while True:
+                arg = self.parse_expression()
+                args.append(arg)
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        self.eat("PUNCT", ")")
+        return FuncCall(func_name, args)
 
 
 if __name__ == "__main__":
     code = '''
-for i in (0 to 5 by 1):
-    say(i)
-    if i == 3:
-        break
+func greet(name):
+    say("Hello, " + name)
 
-for j in (inclusive 3 to 6 by 1):
-    say(j)
-    if j == 5:
-        continue
-    say("After continue")
-
-for:
-    say("Infinite loop")
-    break
+greet("World")
 '''
     tokens = lexer(code)
     parser = Parser(tokens)
