@@ -1,0 +1,257 @@
+NexusV1
+
+Variable Declaration 
+
+(Declaring an untyped variable without value)
+var a 
+var name
+
+(Declaring an untyped variable with value)
+var a = 1
+var name = "John Doe"
+
+(Declaring a typed variable without value)
+var a str
+var b int
+
+(Declaring a typed variable with value)
+var name str = "Jane Doe" 
+var age int = 19
+
+Output Declaration
+
+say("Hello World")
+
+(Printing Variable)
+say(name)
+
+(Printing String with variable)
+say("Hello, "+name)
+
+Input Declaration
+
+ask("What is your name?")
+
+Terminal: What is your name?
+
+Basic Arithmetic Operation Declaration
+
+x+y addition
+x-y subtraction
+x*y multiplication
+x/y division
+
+String Concatenation Decalaration
+
+var a = "Hello"
+var b = "World"
+
+say(a+" "+b)
+
+Conditional Statement Declaration
+
+var a = 20
+var b = 30
+
+if a < b:
+    say("A is less than B")
+else:
+    if a > b:
+        say("A is greater than B")
+else: 
+    say("Both variables are equal")
+
+Loops Declaration
+
+Note: exclusive by default so this would be 0, 1, 2, 3, 4 for 5 iterations 
+for i in (0 to 5 by 1): (Initial Value to End Value by Increment)
+    say("Hello")
+
+(Inclusive Loop)
+Note: this loop will now be inclusive and would have 0, 1, 2, 3, 4, 5 for 6 iterations 
+for i in (inclusive 0 to 5 by 1):
+    say("Hello")
+
+(Reverse Loop)
+for i in (5 to 0 by -1):
+    say("Countdown: "+i)
+
+(Nested Loop)
+for i in (0 to 5 by 1):
+    for j in (0 to 5 by 1):
+        say(i+", "+j)
+
+(Infinite Loop)
+for:
+   say("Infitnity")
+
+(Control Statement)
+Break Statement - This will end the for loop if the condition is true
+Note: this will print 0, 2, 4, and and the loop will break
+for i in (0 to 10 by 2):
+    if i == 6:
+        break 
+    say(i)
+
+Note: this will print 0, 2, 4, 6 as the compiler reads the code line by line
+for i in (0 to 10 by 2):
+    say(i)
+    if i == 6:
+        break 
+
+Continue Statement - This will skip the number 2 if the condition is true
+Note: this will print 0, 1, 3, 4, 5, 6
+for i in (0 to 6 by 1):
+    if i == 2:
+        continue
+    say(i)
+
+Function Declaration
+
+func greet():
+    say("Hello")
+
+call it:
+
+greet()
+
+(Function with parameter)
+
+func greet(name):
+    say("Hello, "+name)
+
+greet("Dale")
+
+(Function with return value)
+
+func add(a, b):
+    return a + b
+
+(Recursive Function)
+
+func countdown(n):
+    if n <= 0:
+        return
+    say(n)
+    countdown(n - 1)
+
+call it:
+countdown(5)
+
+Array Declaration
+
+var fruits[] = ["Apple", "Orange", "Banana"]
+
+(Empty Array)
+var fruits[] = []
+
+(Typed Array)
+var fruits[] str = ["Apple", "Orange", "Banana"]
+
+(Accessing Elements)
+Note: this will print Apple
+say(fruits[0]) 
+
+(Modifying Elements)
+Note: This will change "Banana" into "Strawberry"
+fruits[2] = "Strawberry"
+
+(Looping through Array)
+for fruit in fruits:
+    say(fruit)
+
+Dictionary Declaration
+
+var person{} = {
+    "name": "Alice",
+    "age": 30,
+    "isMember": true
+}
+
+(Empty Dictionary)
+var person{} = {}
+
+(Typed Dictionary)
+var person{} str = {
+    "name": "Alice",
+    "city": "Manila"
+}
+
+(Accessing Values)
+Note: This will print Alice
+say(person["name"])
+
+(Modifying Values)
+person["city"] = "Cavite"
+
+(Looping Through Dictionary)
+for key in person:
+    say(key + ": " + person[key])
+
+Boolean Logic Declaration
+
+(and Logic)
+if isMember and age > 18:
+    say("Welcome!")
+
+(or Logic)
+if city == "Manila" or city == "Cavite":
+    say("You're in Luzon!")
+
+(not Logic)
+if not isMember:
+    say("Please sign up.")
+
+(Complex Logic)
+if (age > 18 and isMember) or city == "Manila":
+    say("Access granted.")
+
+Comparison Operator Declaration
+
+== equal to
+!= not equal to
+> greater than
+< less than
+>= greater than or equal to
+<= less than or equal to
+
+(Using in Condition)
+if age >= 18:
+    say("You're an adult.")
+
+(Combining with Boolean Logic)
+if age < 18 or not isMember:
+    say("Access denied.")
+
+(String Comparison)
+if name == "Alice":
+    say("Hi Alice!")
+
+(Negated Comparison)
+if city != "Manila":
+    say("You're outside the capital.")
+
+Comment Declaration
+# This is a comment
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
