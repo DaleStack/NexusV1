@@ -3,26 +3,19 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var isMember = False
+var fruits[] = ["Apple", "Orange", "Banana"]
 
-say("You are not a member of this group")
-var answer = ask("Do you want to be a member?")
+for i in (0 to 5 by 1):
+    say(i)
 
-func register():
-    isMember = True
+fruits[2] = "Strawberry"    
+for fruit in fruits:
+    say(fruit)
 
-func checkMember(state):
-    if state == True:
-        say("You are now a member")
-    else: 
-        say("You are not a member")
+var name = "Casey"
 
-if answer == "Yes" or answer == "yes":
-    register()
-else:
-    say("Be a member next time")
+say(name)
 
-checkMember(isMember)
 '''
 
 tokens = lexer(code)

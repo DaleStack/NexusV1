@@ -2,11 +2,13 @@ from lexer import lexer
 
 # AST Node classes
 class VarDecl:
-    def __init__(self, name, value, is_array=False, array_type=None):
+    def __init__(self, name, value, is_array=False, array_type=None, is_dict=False, dict_type=None):
         self.name = name
         self.value = value
         self.is_array = is_array
         self.array_type = array_type
+        self.is_dict = is_dict
+        self.dict_type = dict_type
 
 class SayStmt:
     def __init__(self, expr):
@@ -89,6 +91,10 @@ class AssignIndexStmt:
         self.index = index            # expression for index
         self.value = value            # expression for assigned value
 
+class DictLiteral:
+    def __init__(self, pairs):
+        self.pairs = pairs  # list of (key_expr, value_expr) tuples
+
 
 class Parser:
     def __init__(self, tokens):
@@ -142,7 +148,7 @@ class Parser:
         _, name = self.eat("ID")
         node = VarRef(name)
 
-        # Parse index chains like fruits[2][3]
+        # Parse index chains like fruits[2][3] or person["name"]
         while self.current()[0] == "PUNCT" and self.current()[1] == "[":
             self.eat("PUNCT", "[")
             index_expr = self.parse_expression()
@@ -170,7 +176,10 @@ class Parser:
 
         is_array = False
         array_type = None
-        # Detect array declaration
+        is_dict = False
+        dict_type = None
+
+        # Check for array declaration: var name[]
         if self.current()[0] == "PUNCT" and self.current()[1] == "[":
             self.eat("PUNCT", "[")
             self.eat("PUNCT", "]")
@@ -178,6 +187,15 @@ class Parser:
             # Optional type annotation
             if self.current()[0] == "ID":
                 _, array_type = self.eat("ID")
+        
+        # Check for dictionary declaration: var name{}
+        elif self.current()[0] == "PUNCT" and self.current()[1] == "{":
+            self.eat("PUNCT", "{")
+            self.eat("PUNCT", "}")
+            is_dict = True
+            # Optional type annotation
+            if self.current()[0] == "ID":
+                _, dict_type = self.eat("ID")
 
         value = None
         if self.current()[0] == "OP" and self.current()[1] == "=":
@@ -187,7 +205,8 @@ class Parser:
             else:
                 value = self.parse_expression()
 
-        return VarDecl(name, value, is_array=is_array, array_type=array_type)
+        return VarDecl(name, value, is_array=is_array, array_type=array_type, 
+                      is_dict=is_dict, dict_type=dict_type)
 
     def parse_say(self):
         self.eat("SAY")
@@ -307,7 +326,7 @@ class Parser:
             return ForStmt(var_name, start, end, step, body, inclusive=inclusive)
         
         else:
-            # For-each loop: for var_name in iterable:
+            # For-each loop: for var_name in iterable: (works for arrays and dictionaries)
             iterable_expr = self.parse_expression()
             self.eat("PUNCT", ":")
             self.eat("NEWLINE")
@@ -395,6 +414,67 @@ class Parser:
         self.eat("PUNCT", "]")
         return ArrayLiteral(elements)
 
+    def skip_whitespace_tokens(self):
+        """Skip NEWLINE and INDENT/DEDENT tokens that appear in multiline dictionaries"""
+        while self.current()[0] in ("NEWLINE", "INDENT", "DEDENT"):
+            self.eat()
+
+    def parse_dict_literal(self):
+        self.eat("PUNCT", "{")
+        pairs = []
+        
+        # Skip any whitespace after opening brace
+        self.skip_whitespace_tokens()
+        
+        # Handle empty dictionary
+        if self.current()[0] == "PUNCT" and self.current()[1] == "}":
+            self.eat("PUNCT", "}")
+            return DictLiteral(pairs)
+        
+        # Parse key-value pairs
+        while True:
+            # Skip whitespace before key
+            self.skip_whitespace_tokens()
+            
+            # Check if we've reached the end
+            if self.current()[0] == "PUNCT" and self.current()[1] == "}":
+                break
+            
+            # Parse key (can be string, number, or identifier)
+            key_expr = self.parse_expression()
+            
+            # Skip whitespace after key
+            self.skip_whitespace_tokens()
+            
+            # Expect colon
+            if not (self.current()[0] == "PUNCT" and self.current()[1] == ":"):
+                raise SyntaxError(f"Expected ':' after dictionary key but got {self.current()}")
+            self.eat("PUNCT", ":")
+            
+            # Skip whitespace after colon
+            self.skip_whitespace_tokens()
+            
+            # Parse value
+            value_expr = self.parse_expression()
+            pairs.append((key_expr, value_expr))
+            
+            # Skip whitespace after value
+            self.skip_whitespace_tokens()
+            
+            # Check for comma or end
+            if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                self.eat("PUNCT", ",")
+                # Skip whitespace after comma
+                self.skip_whitespace_tokens()
+                # Allow trailing comma
+                if self.current()[0] == "PUNCT" and self.current()[1] == "}":
+                    break
+            else:
+                break
+        
+        self.eat("PUNCT", "}")
+        return DictLiteral(pairs)
+
     def parse_block(self):
         statements = []
         while self.current()[0] not in ("DEDENT", None):
@@ -426,7 +506,7 @@ class Parser:
         self.eat("DEDENT")
         return statements
 
-    # Expression parsing methods (unchanged)
+    # Expression parsing methods
     def parse_expression(self):
         return self.parse_or()
 
@@ -503,11 +583,14 @@ class Parser:
         elif tok_type == "PUNCT" and tok_value == "[":
             return self.parse_array_literal()
 
+        elif tok_type == "PUNCT" and tok_value == "{":
+            return self.parse_dict_literal()
+
         elif tok_type == "NUMBER" or tok_type == "STRING":
             self.eat()
             return Literal(tok_value)
         
-        # ADD THIS: Handle boolean literals
+        # Handle boolean literals
         elif tok_type == "BOOLEAN":
             self.eat()
             # Convert string to actual boolean value
@@ -519,11 +602,12 @@ class Parser:
 
         elif tok_type == "ID":
             self.eat()
-            # Check for function call or index access later
+            # Check for function call or index access
             if self.current()[0] == "PUNCT" and self.current()[1] == "(":
                 return self.parse_func_call_expr(tok_value)
             else:
                 node = VarRef(tok_value)
+                # Handle index access like person["name"] or array[0]
                 while self.current()[0] == "PUNCT" and self.current()[1] == "[":
                     self.eat("PUNCT", "[")
                     index_expr = self.parse_expression()
@@ -549,34 +633,69 @@ class Parser:
         return FuncCall(func_name, args)
 
 
-# Test the complete system:
+# Test the complete system with dictionary support:
 if __name__ == "__main__":
     from lexer import lexer
-    from interpreter import Interpreter
     
     test_code = '''
-var isMember = True
-var age = 20
-var city = "Manila"
+var person{} = {
+    "name": "Alice",
+    "age": 30,
+    "isMember": true
+}
 
-if not isMember:
-    say("Please sign up")
-else:
-    say("Welcome member!")
+var empty{} = {}
 
-if isMember and age > 18:
-    say("Adult member access granted")
+var cities{} str = {
+    "ph": "Manila",
+    "us": "New York"
+}
 
-if city == "Manila" or city == "Cavite":
-    say("You're in Luzon!")
+say(person["name"])
+say(person["age"])
 
-if (age > 18 and isMember) or city == "Manila":
-    say("Complex condition met")
+person["city"] = "Cavite"
+say(person["city"])
+
+for key in person:
+    say(key + ": " + person[key])
 '''
     
-    print("=== TESTING BOOLEAN LOGIC ===")
+    print("=== TESTING DICTIONARY SUPPORT ===")
     tokens = lexer(test_code)
-    parser = Parser(tokens)
-    ast = parser.parse()
-    interpreter = Interpreter()
-    interpreter.run(ast)
+    
+    # Debug: Print first 30 tokens to see what's happening
+    print("First 30 tokens:")
+    for i, token in enumerate(tokens[:30]):
+        print(f"{i}: {token}")
+    print("...")
+    
+    try:
+        parser = Parser(tokens)
+        ast = parser.parse()
+        print("\n PARSING SUCCESSFUL!")
+        print(f"Generated {len(ast)} AST nodes:")
+        
+        for i, node in enumerate(ast):
+            if isinstance(node, VarDecl):
+                dict_info = f" (dict: {node.is_dict})" if node.is_dict else ""
+                array_info = f" (array: {node.is_array})" if node.is_array else ""
+                print(f"  {i}: VarDecl '{node.name}'{dict_info}{array_info}")
+            elif isinstance(node, DictLiteral):
+                print(f"  {i}: DictLiteral with {len(node.pairs)} pairs")
+            elif isinstance(node, SayStmt):
+                print(f"  {i}: SayStmt")
+            elif isinstance(node, AssignIndexStmt):
+                print(f"  {i}: AssignIndexStmt (dictionary/array assignment)")
+            elif isinstance(node, ForEachStmt):
+                print(f"  {i}: ForEachStmt (dictionary/array iteration)")
+            else:
+                print(f"  {i}: {type(node).__name__}")
+                
+        print("\n Dictionary parsing is working correctly!")
+        print("Next step: Update your interpreter to handle DictLiteral and dictionary operations")
+        
+    except Exception as e:
+        print(f"\n PARSING FAILED: {e}")
+        import traceback
+        traceback.print_exc()
