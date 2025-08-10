@@ -83,6 +83,11 @@ class ForEachStmt:
         self.iterable_expr = iterable_expr
         self.body = body
 
+class AssignIndexStmt:
+    def __init__(self, collection, index, value):
+        self.collection = collection  # expression (like VarRef or IndexExpr)
+        self.index = index            # expression for index
+        self.value = value            # expression for assigned value
 
 
 class Parser:
@@ -120,23 +125,44 @@ class Parser:
                 statements.append(self.parse_continue())
             elif tok_type == "ASK":
                 statements.append(self.parse_ask())
-            elif tok_type == "FUNC":          # <-- Add this
+            elif tok_type == "FUNC":
                 statements.append(self.parse_func_decl())
             elif tok_type == "RETURN":
                 statements.append(self.parse_return())
             elif tok_type == "ID":
-                # Could be a function call or a variable reference
-                # Peek next token to check if it's '('
-                next_tok = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else (None, None)
-                if next_tok[0] == "PUNCT" and next_tok[1] == "(":
-                    statements.append(self.parse_func_call())
-                else:
-                    self.pos += 1  # Skip or raise error depending on your grammar
+                statements.append(self.parse_statement_starting_with_id())
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
             else:
                 self.pos += 1
         return statements
+
+    def parse_statement_starting_with_id(self):
+        # Parse a statement that starts with ID: could be assignment to index or function call
+        _, name = self.eat("ID")
+        node = VarRef(name)
+
+        # Parse index chains like fruits[2][3]
+        while self.current()[0] == "PUNCT" and self.current()[1] == "[":
+            self.eat("PUNCT", "[")
+            index_expr = self.parse_expression()
+            self.eat("PUNCT", "]")
+            node = IndexExpr(node, index_expr)
+
+        # Now check if assignment or function call
+        if self.current()[0] == "OP" and self.current()[1] == "=":
+            self.eat("OP", "=")
+            value_expr = self.parse_expression()
+            if self.current()[0] == "NEWLINE":
+                self.eat("NEWLINE")
+            return AssignIndexStmt(node.collection if isinstance(node, IndexExpr) else node,
+                                   node.index if isinstance(node, IndexExpr) else None,
+                                   value_expr)
+        elif self.current()[0] == "PUNCT" and self.current()[1] == "(":
+            # function call
+            return self.parse_func_call_expr(name)
+        else:
+            raise SyntaxError(f"Unexpected token after identifier: {self.current()}")
 
     def parse_var_decl(self):
         self.eat("VAR")
@@ -181,7 +207,6 @@ class Parser:
 
         if self.current()[0] == "ELSE":
             self.eat("ELSE")
-            # Handle else-if as nested if inside else_body list
             if self.current()[0] == "IF":
                 else_body = [self.parse_if()]
             else:
@@ -195,7 +220,7 @@ class Parser:
     def parse_for(self):
         self.eat("FOR")
 
-        # Check for infinite loop syntax
+        # Infinite loop syntax: for:
         if self.current()[0] == "PUNCT" and self.current()[1] == ":":
             self.eat("PUNCT", ":")
             self.eat("NEWLINE")
@@ -203,7 +228,7 @@ class Parser:
             body = self.parse_block()
             return ForStmt(None, None, None, None, body, infinite=True)
 
-        # Check for for-each loop: for var_name in expression:
+        # For-each loop: for var_name in expression:
         if self.current()[0] == "ID":
             _, var_name = self.eat("ID")
             if self.current()[0] == "IN":
@@ -215,8 +240,7 @@ class Parser:
                 body = self.parse_block()
                 return ForEachStmt(var_name, iterable_expr, body)
 
-        # Otherwise fallback to numeric for-loop parsing
-        # (existing code for var_name in (start to end by step))
+        # Numeric for loop fallback
         _, var_name = self.eat("ID")
         if self.current()[0] != "IN":
             raise SyntaxError(f"Expected 'in' after for variable but got {self.current()}")
@@ -267,7 +291,7 @@ class Parser:
         prompt_expr = self.parse_expression()
         self.eat("PUNCT", ")")
         return AskStmt(prompt_expr)
-    
+
     def parse_return(self):
         self.eat("RETURN")
         expr = None
@@ -276,12 +300,12 @@ class Parser:
         if self.current()[0] == "NEWLINE":
             self.eat("NEWLINE")
         return ReturnStmt(expr)
-    
+
     def parse_func_decl(self):
         self.eat("FUNC")
         _, name = self.eat("ID")
         self.eat("PUNCT", "(")
-        
+
         params = []
         if self.current()[0] != "PUNCT" or self.current()[1] != ")":
             while True:
@@ -297,7 +321,7 @@ class Parser:
         self.eat("INDENT")
         body = self.parse_block()
         return FuncDecl(name, params, body)
-    
+
     def parse_func_call(self):
         _, name = self.eat("ID")
         self.eat("PUNCT", "(")
@@ -314,7 +338,7 @@ class Parser:
         if self.current()[0] == "NEWLINE":
             self.eat("NEWLINE")
         return FuncCall(name, args)
-    
+
     def parse_array_literal(self):
         self.eat("PUNCT", "[")
         elements = []
@@ -347,12 +371,12 @@ class Parser:
                 statements.append(self.parse_continue())
             elif tok_type == "ASK":
                 statements.append(self.parse_ask())
-            elif tok_type == "FUNC":                # <-- Add here if nested functions allowed
+            elif tok_type == "FUNC":
                 statements.append(self.parse_func_decl())
             elif tok_type == "RETURN":
                 statements.append(self.parse_return())
-            elif tok_type == "ID":                  # <-- ADD THIS CASE
-                statements.append(self.parse_func_call())
+            elif tok_type == "ID":
+                statements.append(self.parse_statement_starting_with_id())
             elif tok_type == "NEWLINE":
                 self.eat("NEWLINE")
             else:
@@ -360,7 +384,7 @@ class Parser:
         self.eat("DEDENT")
         return statements
 
-    # Expression parsing methods omitted for brevity (unchanged) ...
+    # Expression parsing methods (unchanged)
     def parse_expression(self):
         return self.parse_or()
 
@@ -421,7 +445,6 @@ class Parser:
         elif tok_type == "OP" and tok_value == "-":
             self.eat()
             right = self.parse_unary()
-            # Treat unary minus as BinaryOp with left=None, op='-', right=right
             return BinaryOp(None, "-", right)
         else:
             return self.parse_primary()
@@ -444,13 +467,11 @@ class Parser:
 
         elif tok_type == "ID":
             self.eat()
-            # Check for function call or index access later (see next step)
+            # Check for function call or index access later
             if self.current()[0] == "PUNCT" and self.current()[1] == "(":
                 return self.parse_func_call_expr(tok_value)
             else:
-                # Handle index expressions like fruits[0]
                 node = VarRef(tok_value)
-                # Check if followed by [
                 while self.current()[0] == "PUNCT" and self.current()[1] == "[":
                     self.eat("PUNCT", "[")
                     index_expr = self.parse_expression()
