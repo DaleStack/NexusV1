@@ -216,6 +216,39 @@ class Parser:
                 else_body = self.parse_block()
 
         return IfStmt(condition, body, else_body)
+    
+    def parse_expression_until(self, stop_tokens):
+        expr_tokens = []
+        paren_count = 0
+
+        while True:
+            tok = self.current()
+            if tok == (None, None):
+                break
+
+            # If token is stop token and not inside parentheses, stop
+            if tok in stop_tokens and paren_count == 0:
+                break
+
+            # Track parentheses depth to handle nested parentheses
+            if tok[0] == "PUNCT":
+                if tok[1] == "(":
+                    paren_count += 1
+                elif tok[1] == ")":
+                    if paren_count == 0:
+                        # Unbalanced closing parenthesis, could error or break
+                        break
+                    paren_count -= 1
+
+            expr_tokens.append(tok)
+            self.pos += 1
+
+        # Parse the sliced tokens as a separate expression
+        temp_parser = Parser(expr_tokens)
+        expr = temp_parser.parse_expression()
+
+        # Do not consume stop token here; reset self.pos so main parser can eat it
+        return expr
 
     def parse_for(self):
         self.eat("FOR")
@@ -228,50 +261,58 @@ class Parser:
             body = self.parse_block()
             return ForStmt(None, None, None, None, body, infinite=True)
 
-        # For-each loop: for var_name in expression:
-        if self.current()[0] == "ID":
-            _, var_name = self.eat("ID")
-            if self.current()[0] == "IN":
-                self.eat("IN")
-                iterable_expr = self.parse_expression()
-                self.eat("PUNCT", ":")
-                self.eat("NEWLINE")
-                self.eat("INDENT")
-                body = self.parse_block()
-                return ForEachStmt(var_name, iterable_expr, body)
-
-        # Numeric for loop fallback
+        # Expect variable name after for
+        if self.current()[0] != "ID":
+            raise SyntaxError(f"Expected variable name after 'for' but got {self.current()}")
         _, var_name = self.eat("ID")
+
+        # Must have 'in' after variable name
         if self.current()[0] != "IN":
             raise SyntaxError(f"Expected 'in' after for variable but got {self.current()}")
         self.eat("IN")
 
-        self.eat("PUNCT", "(")
-        inclusive = False
-        if self.current()[0] == "INCLUSIVE":
-            self.eat("INCLUSIVE")
-            inclusive = True
+        # Check if it's a numeric range: for var in (start to end by step)
+        if self.current()[0] == "PUNCT" and self.current()[1] == "(":
+            # Numeric for loop: for var_name in (start to end by step):
+            self.eat("PUNCT", "(")
 
-        start = self.parse_expression()
+            inclusive = False
+            if self.current()[0] == "INCLUSIVE":
+                self.eat("INCLUSIVE")
+                inclusive = True
 
-        if self.current()[0] != "TO":
-            raise SyntaxError(f"Expected 'to' in for loop range but got {self.current()}")
-        self.eat("TO")
+            start = self.parse_expression_until([("TO", "to")])
 
-        end = self.parse_expression()
+            if self.current()[0] != "TO":
+                raise SyntaxError(f"Expected 'to' in for loop range but got {self.current()}")
+            self.eat("TO")
 
-        step = Literal(1)
-        if self.current()[0] == "BY":
-            self.eat("BY")
-            step = self.parse_expression()
+            end = self.parse_expression_until([("BY", "by"), ("PUNCT", ")")])
 
-        self.eat("PUNCT", ")")
-        self.eat("PUNCT", ":")
-        self.eat("NEWLINE")
-        self.eat("INDENT")
-        body = self.parse_block()
+            step = Literal(1)
+            if self.current()[0] == "BY":
+                self.eat("BY")
+                step = self.parse_expression_until([("PUNCT", ")")])
 
-        return ForStmt(var_name, start, end, step, body, inclusive=inclusive)
+            if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+                raise SyntaxError(f"Expected ')' after for loop range but got {self.current()}")
+            self.eat("PUNCT", ")")
+
+            self.eat("PUNCT", ":")
+            self.eat("NEWLINE")
+            self.eat("INDENT")
+            body = self.parse_block()
+
+            return ForStmt(var_name, start, end, step, body, inclusive=inclusive)
+        
+        else:
+            # For-each loop: for var_name in iterable:
+            iterable_expr = self.parse_expression()
+            self.eat("PUNCT", ":")
+            self.eat("NEWLINE")
+            self.eat("INDENT")
+            body = self.parse_block()
+            return ForEachStmt(var_name, iterable_expr, body)
 
     def parse_break(self):
         self.eat("BREAK")
@@ -499,16 +540,8 @@ class Parser:
 
 if __name__ == "__main__":
     code = '''
-var fruits[] = ["Apple", "Orange", "Banana"]
-var empty[] = []
-var numbers[] int = [1, 2, 3]
-
-say(fruits[0])
-
-fruits[2] = "Strawberry"
-
-for fruit in fruits:
-    say(fruit)
+for i in (0 to 5 by 1):
+    say(i)
 '''
     tokens = lexer(code)
     parser = Parser(tokens)

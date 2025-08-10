@@ -1,5 +1,9 @@
 from lexer import lexer
-from parser import Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt, BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt 
+from parser import (
+    Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt,
+    BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt,
+    ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt
+)
 
 
 # Custom exceptions for control flow
@@ -12,6 +16,7 @@ class ContinueException(Exception):
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
+
 
 class Env:
     def __init__(self, parent=None):
@@ -37,9 +42,10 @@ class Env:
         else:
             return False
 
+
 class Interpreter:
     def __init__(self):
-        self.env = Env()          # global env now is Env instance
+        self.env = Env()          # global environment
         self.functions = {}       # function name -> FuncDecl node
 
     def eval_expr(self, node, env=None):
@@ -48,15 +54,18 @@ class Interpreter:
 
         if isinstance(node, Literal):
             return node.value
+
         elif isinstance(node, VarRef):
             if node.name in env:
                 return env[node.name]
             else:
                 raise NameError(f"Undefined variable '{node.name}'")
+
         elif isinstance(node, BinaryOp):
             left = self.eval_expr(node.left, env) if node.left else None
             right = self.eval_expr(node.right, env)
             op = node.op
+
             if op == "+":
                 return left + right
             elif op == "-":
@@ -64,7 +73,6 @@ class Interpreter:
                     return -right
                 else:
                     return left - right
-            # Add other operators as you have
             elif op == "*":
                 return left * right
             elif op == "/":
@@ -91,8 +99,22 @@ class Interpreter:
                 return not right
             else:
                 raise ValueError(f"Unknown operator: {op}")
+
+        elif isinstance(node, ArrayLiteral):
+            # Evaluate each element into a list
+            return [self.eval_expr(elem, env) for elem in node.elements]
+
+        elif isinstance(node, IndexExpr):
+            collection = self.eval_expr(node.collection, env)
+            index = self.eval_expr(node.index, env)
+            try:
+                return collection[index]
+            except Exception as e:
+                raise RuntimeError(f"Index error: {e}")
+
         elif isinstance(node, FuncCall):
             return self.exec_func_call(node, env)
+
         else:
             raise TypeError(f"Unknown expression node: {node}")
 
@@ -108,7 +130,21 @@ class Interpreter:
             elif node.value is not None:
                 env[node.name] = self.eval_expr(node.value, env)
             else:
-                env[node.name] = None
+                # If declared as array but no value given, assign empty list
+                if node.is_array:
+                    env[node.name] = []
+                else:
+                    env[node.name] = None
+
+        elif isinstance(node, AssignIndexStmt):
+            collection = self.eval_expr(node.collection, env)
+            index = self.eval_expr(node.index, env)
+            value = self.eval_expr(node.value, env)
+
+            try:
+                collection[index] = value
+            except Exception as e:
+                raise RuntimeError(f"Assignment index error: {e}")
 
         elif isinstance(node, SayStmt):
             print(self.eval_expr(node.expr, env))
@@ -124,6 +160,18 @@ class Interpreter:
                 else:
                     self.exec_stmt(node.else_body, env)
 
+        elif isinstance(node, ForEachStmt):
+            iterable = self.eval_expr(node.iterable_expr, env)
+            for item in iterable:
+                env[node.var_name] = item
+                try:
+                    for stmt in node.body:
+                        self.exec_stmt(stmt, env)
+                except BreakException:
+                    break
+                except ContinueException:
+                    continue
+
         elif isinstance(node, ForStmt):
             self.exec_for(node, env)
 
@@ -138,7 +186,7 @@ class Interpreter:
             input(str(prompt))
 
         elif isinstance(node, FuncDecl):
-            # Store the function globally (only top-level supported)
+            # Store function globally (only top-level supported)
             self.functions[node.name] = node
 
         elif isinstance(node, FuncCall):
@@ -162,14 +210,12 @@ class Interpreter:
         if len(node.args) != len(func.params):
             raise TypeError(f"Function '{node.name}' expects {len(func.params)} arguments, got {len(node.args)}")
 
-        # FIX: Create local environment with global environment as parent instead of caller environment
-        # This allows recursive functions to access global function definitions
+        # Use global env as parent so functions can access global functions & variables
         local_env = Env(parent=self.env)
 
         for param, arg_expr in zip(func.params, node.args):
             value = self.eval_expr(arg_expr, caller_env)
             local_env[param] = value
-
 
         try:
             for stmt in func.body:
@@ -177,7 +223,6 @@ class Interpreter:
         except ReturnException as ret:
             return ret.value
         return None
-
 
     def exec_for(self, node: ForStmt, env):
         if node.infinite:
@@ -224,11 +269,24 @@ class Interpreter:
 
 if __name__ == "__main__":
     code = '''
+var fruits[] = ["Apple", "Orange", "Banana"]
+var empty[] = []
+var numbers[] int = [1, 2, 3]
+
+fruits[2] = "Strawberry"
+
+for fruit in fruits:
+    say(fruit)
+
+for number in numbers:
+    say(number)
+
 func greeting():
     say("Hello, people!")
 
 greeting()
 '''
+
     tokens = lexer(code)
     parser = Parser(tokens)
     ast = parser.parse()

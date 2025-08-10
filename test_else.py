@@ -3,13 +3,18 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var a = ask("Enter number ")
-var b = ask("Enter number ")
+var fruits[] = ["Apple", "Orange", "Banana"]
 
-func greetName(c, d):
-    say(c + d)
+func readFruit():
+    for fruit in fruits:
+        say(fruit)
+readFruit()
 
-greetName(a, b)
+fruits[2] = "Strawberry"
+
+readFruit()
+
+say(fruits[0])
 '''
 
 tokens = lexer(code)
