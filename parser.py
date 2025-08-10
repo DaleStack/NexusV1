@@ -2,9 +2,11 @@ from lexer import lexer
 
 # AST Node classes
 class VarDecl:
-    def __init__(self, name, value):
+    def __init__(self, name, value, is_array=False, array_type=None):
         self.name = name
         self.value = value
+        self.is_array = is_array
+        self.array_type = array_type
 
 class SayStmt:
     def __init__(self, expr):
@@ -66,6 +68,21 @@ class ReturnStmt:
     def __init__(self, expr):
         self.expr = expr          # expression node or None
 
+class ArrayLiteral:
+    def __init__(self, elements):
+        self.elements = elements  # list of expressions
+
+class IndexExpr:
+    def __init__(self, collection, index):
+        self.collection = collection  # expression
+        self.index = index            # expression
+
+class ForEachStmt:
+    def __init__(self, var_name, iterable_expr, body):
+        self.var_name = var_name
+        self.iterable_expr = iterable_expr
+        self.body = body
+
 
 
 class Parser:
@@ -124,14 +141,27 @@ class Parser:
     def parse_var_decl(self):
         self.eat("VAR")
         _, name = self.eat("ID")
+
+        is_array = False
+        array_type = None
+        # Detect array declaration
+        if self.current()[0] == "PUNCT" and self.current()[1] == "[":
+            self.eat("PUNCT", "[")
+            self.eat("PUNCT", "]")
+            is_array = True
+            # Optional type annotation
+            if self.current()[0] == "ID":
+                _, array_type = self.eat("ID")
+
         value = None
         if self.current()[0] == "OP" and self.current()[1] == "=":
-            self.eat("OP")
+            self.eat("OP", "=")
             if self.current()[0] == "ASK":
                 value = self.parse_ask()
             else:
                 value = self.parse_expression()
-        return VarDecl(name, value)
+
+        return VarDecl(name, value, is_array=is_array, array_type=array_type)
 
     def parse_say(self):
         self.eat("SAY")
@@ -165,14 +195,28 @@ class Parser:
     def parse_for(self):
         self.eat("FOR")
 
+        # Check for infinite loop syntax
         if self.current()[0] == "PUNCT" and self.current()[1] == ":":
-            # Infinite loop
             self.eat("PUNCT", ":")
             self.eat("NEWLINE")
             self.eat("INDENT")
             body = self.parse_block()
             return ForStmt(None, None, None, None, body, infinite=True)
 
+        # Check for for-each loop: for var_name in expression:
+        if self.current()[0] == "ID":
+            _, var_name = self.eat("ID")
+            if self.current()[0] == "IN":
+                self.eat("IN")
+                iterable_expr = self.parse_expression()
+                self.eat("PUNCT", ":")
+                self.eat("NEWLINE")
+                self.eat("INDENT")
+                body = self.parse_block()
+                return ForEachStmt(var_name, iterable_expr, body)
+
+        # Otherwise fallback to numeric for-loop parsing
+        # (existing code for var_name in (start to end by step))
         _, var_name = self.eat("ID")
         if self.current()[0] != "IN":
             raise SyntaxError(f"Expected 'in' after for variable but got {self.current()}")
@@ -270,6 +314,20 @@ class Parser:
         if self.current()[0] == "NEWLINE":
             self.eat("NEWLINE")
         return FuncCall(name, args)
+    
+    def parse_array_literal(self):
+        self.eat("PUNCT", "[")
+        elements = []
+        if not (self.current()[0] == "PUNCT" and self.current()[1] == "]"):
+            while True:
+                elem = self.parse_expression()
+                elements.append(elem)
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        self.eat("PUNCT", "]")
+        return ArrayLiteral(elements)
 
     def parse_block(self):
         statements = []
@@ -377,18 +435,28 @@ class Parser:
             self.eat("PUNCT", ")")
             return expr
 
+        elif tok_type == "PUNCT" and tok_value == "[":
+            return self.parse_array_literal()
+
         elif tok_type == "NUMBER" or tok_type == "STRING":
             self.eat()
             return Literal(tok_value)
 
         elif tok_type == "ID":
             self.eat()
-            # Peek next token to see if this is a function call
+            # Check for function call or index access later (see next step)
             if self.current()[0] == "PUNCT" and self.current()[1] == "(":
-                # It's a function call expression
                 return self.parse_func_call_expr(tok_value)
             else:
-                return VarRef(tok_value)
+                # Handle index expressions like fruits[0]
+                node = VarRef(tok_value)
+                # Check if followed by [
+                while self.current()[0] == "PUNCT" and self.current()[1] == "[":
+                    self.eat("PUNCT", "[")
+                    index_expr = self.parse_expression()
+                    self.eat("PUNCT", "]")
+                    node = IndexExpr(node, index_expr)
+                return node
 
         else:
             raise SyntaxError(f"Unexpected token: {tok_type} {tok_value}")
