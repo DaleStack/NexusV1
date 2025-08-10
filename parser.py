@@ -478,10 +478,16 @@ class Parser:
 
 if __name__ == "__main__":
     code = '''
-func greet(name):
-    say("Hello, " + name)
+var fruits[] = ["Apple", "Orange", "Banana"]
+var empty[] = []
+var numbers[] int = [1, 2, 3]
 
-greet("World")
+say(fruits[0])
+
+fruits[2] = "Strawberry"
+
+for fruit in fruits:
+    say(fruit)
 '''
     tokens = lexer(code)
     parser = Parser(tokens)
