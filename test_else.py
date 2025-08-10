@@ -3,12 +3,13 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var a = ask("Enter name: ")
+var a = ask("Enter number ")
+var b = ask("Enter number ")
 
-func greetName(name):
-    say("Hello, "+name)
+func greetName(c, d):
+    say(c + d)
 
-greetName(a)
+greetName(a, b)
 '''
 
 tokens = lexer(code)

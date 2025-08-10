@@ -1,5 +1,6 @@
 NexusV1
 
+// DONE
 Variable Declaration 
 
 (Declaring an untyped variable without value)
@@ -18,6 +19,7 @@ var b int
 var name str = "Jane Doe" 
 var age int = 19
 
+// DONE
 Output Declaration
 
 say("Hello World")
@@ -28,12 +30,14 @@ say(name)
 (Printing String with variable)
 say("Hello, "+name)
 
+//DONE
 Input Declaration
 
 ask("What is your name?")
 
 Terminal: What is your name?
 
+// DONE
 Basic Arithmetic Operation Declaration
 
 x+y addition
@@ -41,6 +45,7 @@ x-y subtraction
 x*y multiplication
 x/y division
 
+//DONE
 String Concatenation Decalaration
 
 var a = "Hello"
@@ -48,6 +53,7 @@ var b = "World"
 
 say(a+" "+b)
 
+// DONE
 Conditional Statement Declaration
 
 var a = 20
@@ -61,6 +67,7 @@ else:
 else: 
     say("Both variables are equal")
 
+// DONE
 Loops Declaration
 
 Note: exclusive by default so this would be 0, 1, 2, 3, 4 for 5 iterations 
@@ -106,6 +113,7 @@ for i in (0 to 6 by 1):
         continue
     say(i)
 
+// DONE
 Function Declaration
 
 func greet():
