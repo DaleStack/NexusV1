@@ -3,11 +3,7 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var test str
 
-test = "This is a test"
-
-say(test)
 '''
 
 tokens = lexer(code)
