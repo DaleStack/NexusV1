@@ -1,4 +1,21 @@
 ARRAY METHODS
-
+arr.append(value)        // Add value to end
+arr.insert(index, value) // Insert at index
+arr.remove(value)        // Remove first occurrence
+arr.pop(index)           // Remove and return value at index
+arr.length()             // Return number of elements
+arr.index(value)         // Return index of value
+arr.sort()               // Sort array ascending
+arr.reverse()            // Reverse array order
+arr.slice(start, end)    // Return sub-array
+arr.contains(value)      // Check if value exists
 
 DICTIONARY METHODS
+dict.set(key, value)     // Add or update key-value pair
+dict.get(key)            // Retrieve value by key
+dict.remove(key)         // Delete key-value pair
+dict.pop(key)            // Remove and return value
+dict.contains(key)       // Check if key exists
+dict.length()            // Number of key-value pairs
+dict.keys()              // Return array of keys
+dict.values()            // Return array of values

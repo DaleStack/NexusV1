@@ -3,18 +3,12 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var fruits[] = ["Apple", "Orange", "Banana"]
+var city = "Cavite"
 
-func readFruit():
-    for fruit in fruits:
-        say(fruit)
-readFruit()
-
-fruits[2] = "Strawberry"
-
-readFruit()
-
-say(fruits[0])
+if city != "Cavite":
+    say("You are not in Cavite or Manila")
+else if city == "Manila":
+    say("You are in manila")
 '''
 
 tokens = lexer(code)

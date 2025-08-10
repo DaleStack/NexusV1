@@ -269,22 +269,18 @@ class Interpreter:
 
 if __name__ == "__main__":
     code = '''
-var fruits[] = ["Apple", "Orange", "Banana"]
-var empty[] = []
-var numbers[] int = [1, 2, 3]
+var isMember = "No"
+var age = 17
+var city = "Cavite"
+if isMember == "Yes" and age >= 18:
+    say("Welcome ")
 
-fruits[2] = "Strawberry"
+if city == "Cavite" or city == "Manila":
+    say("Hello pals!")
 
-for fruit in fruits:
-    say(fruit)
+if (age >= 18 and isMember == "Yes") or city == "Manila":
+    say("Access granted.")
 
-for number in numbers:
-    say(number)
-
-func greeting():
-    say("Hello, people!")
-
-greeting()
 '''
 
     tokens = lexer(code)

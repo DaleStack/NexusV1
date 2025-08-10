@@ -208,7 +208,8 @@ class Parser:
         if self.current()[0] == "ELSE":
             self.eat("ELSE")
             if self.current()[0] == "IF":
-                else_body = [self.parse_if()]
+                # For else if, create a single IfStmt (not wrapped in a list)
+                else_body = self.parse_if()
             else:
                 self.eat("PUNCT", ":")
                 self.eat("NEWLINE")

@@ -198,11 +198,11 @@ for key in person:
 
 Boolean Logic Declaration
 
-(and Logic)
+(and Logic) // DONE
 if isMember and age > 18:
     say("Welcome!")
 
-(or Logic)
+(or Logic) // DONE
 if city == "Manila" or city == "Cavite":
     say("You're in Luzon!")
 
@@ -210,19 +210,20 @@ if city == "Manila" or city == "Cavite":
 if not isMember:
     say("Please sign up.")
 
-(Complex Logic)
+(Complex Logic) // Done
 if (age > 18 and isMember) or city == "Manila":
     say("Access granted.")
 
 Comparison Operator Declaration
 
-== equal to
-!= not equal to
-> greater than
-< less than
->= greater than or equal to
-<= less than or equal to
+== equal to // Done
+!= not equal to // DONE
+> greater than // Done
+< less than // Done
+>= greater than or equal to // Done
+<= less than or equal to // Done
 
+// DONE
 (Using in Condition)
 if age >= 18:
     say("You're an adult.")
