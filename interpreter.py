@@ -2,7 +2,7 @@ from lexer import lexer
 from parser import (
     Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt,
     BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt,
-    ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt
+    ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt, DictLiteral
 )
 
 
@@ -42,6 +42,10 @@ class Env:
         else:
             return False
 
+    def define(self, key, value):
+        """Define a variable in this environment"""
+        self.vars[key] = value
+
 
 class Interpreter:
     def __init__(self):
@@ -67,6 +71,9 @@ class Interpreter:
             op = node.op
 
             if op == "+":
+                # Handle string concatenation with automatic type conversion
+                if isinstance(left, str) or isinstance(right, str):
+                    return str(left) + str(right)
                 return left + right
             elif op == "-":
                 if left is None:
@@ -104,6 +111,15 @@ class Interpreter:
             # Evaluate each element into a list
             return [self.eval_expr(elem, env) for elem in node.elements]
 
+        elif isinstance(node, DictLiteral):
+            # Evaluate dictionary literal into a Python dict
+            result = {}
+            for key_expr, value_expr in node.pairs:
+                key = self.eval_expr(key_expr, env)
+                value = self.eval_expr(value_expr, env)
+                result[key] = value
+            return result
+
         elif isinstance(node, IndexExpr):
             collection = self.eval_expr(node.collection, env)
             index = self.eval_expr(node.index, env)
@@ -128,11 +144,15 @@ class Interpreter:
                 user_input = input(str(prompt))
                 env[node.name] = user_input
             elif node.value is not None:
-                env[node.name] = self.eval_expr(node.value, env)
+                # Evaluate the value (could be DictLiteral, ArrayLiteral, etc.)
+                value = self.eval_expr(node.value, env)
+                env[node.name] = value
             else:
-                # If declared as array but no value given, assign empty list
+                # Handle empty declarations
                 if node.is_array:
                     env[node.name] = []
+                elif node.is_dict:
+                    env[node.name] = {}
                 else:
                     env[node.name] = None
 
@@ -151,7 +171,7 @@ class Interpreter:
                 else:
                     raise RuntimeError("Invalid assignment target")
             else:
-                # Array index assignment
+                # Array/Dictionary index assignment: collection[index] = value
                 collection = self.eval_expr(node.collection, env)
                 index = self.eval_expr(node.index, env)
                 value = self.eval_expr(node.value, env)
@@ -161,7 +181,8 @@ class Interpreter:
                     raise RuntimeError(f"Assignment index error: {e}")
                 
         elif isinstance(node, SayStmt):
-            print(self.eval_expr(node.expr, env))
+            result = self.eval_expr(node.expr, env)
+            print(result)
 
         elif isinstance(node, IfStmt):
             if self.eval_expr(node.condition, env):
@@ -176,15 +197,31 @@ class Interpreter:
 
         elif isinstance(node, ForEachStmt):
             iterable = self.eval_expr(node.iterable_expr, env)
-            for item in iterable:
-                env[node.var_name] = item
-                try:
-                    for stmt in node.body:
-                        self.exec_stmt(stmt, env)
-                except BreakException:
-                    break
-                except ContinueException:
-                    continue
+            
+            # Handle dictionary iteration (iterate over keys)
+            if isinstance(iterable, dict):
+                for key in iterable:
+                    env[node.var_name] = key
+                    try:
+                        for stmt in node.body:
+                            self.exec_stmt(stmt, env)
+                    except BreakException:
+                        break
+                    except ContinueException:
+                        continue
+            # Handle list/array iteration
+            elif isinstance(iterable, list):
+                for item in iterable:
+                    env[node.var_name] = item
+                    try:
+                        for stmt in node.body:
+                            self.exec_stmt(stmt, env)
+                    except BreakException:
+                        break
+                    except ContinueException:
+                        continue
+            else:
+                raise RuntimeError(f"Cannot iterate over {type(iterable).__name__}")
 
         elif isinstance(node, ForStmt):
             self.exec_for(node, env)
@@ -197,7 +234,7 @@ class Interpreter:
 
         elif isinstance(node, AskStmt):
             prompt = self.eval_expr(node.prompt_expr, env)
-            input(str(prompt))
+            return input(str(prompt))
 
         elif isinstance(node, FuncDecl):
             # Store function globally (only top-level supported)
@@ -281,24 +318,32 @@ class Interpreter:
             self.exec_stmt(stmt, self.env)
 
 
+# Test the dictionary functionality
 if __name__ == "__main__":
-    code = '''
-var isMember = "No"
-var age = 17
-var city = "Cavite"
-if isMember == "Yes" and age >= 18:
-    say("Welcome ")
+    test_code = '''
+var person{} = {
+    "name": "Alice",
+    "age": 30,
+    "isMember": true
+}
 
-if city == "Cavite" or city == "Manila":
-    say("Hello pals!")
+var empty{} = {}
 
-if (age >= 18 and isMember == "Yes") or city == "Manila":
-    say("Access granted.")
+say("Person's name: " + person["name"])
+say("Person's age: " + person["age"])
 
+person["city"] = "Cavite"
+say("Person's city: " + person["city"])
+
+say("Iterating through person dictionary:")
+for key in person:
+    say(key + ": " + person[key])
 '''
 
-    tokens = lexer(code)
+    print("=== TESTING DICTIONARY INTERPRETER ===")
+    tokens = lexer(test_code)
     parser = Parser(tokens)
     ast = parser.parse()
+    
     interpreter = Interpreter()
     interpreter.run(ast)

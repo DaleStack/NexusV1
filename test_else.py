@@ -3,18 +3,20 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var fruits[] = ["Apple", "Orange", "Banana"]
 
-for i in (0 to 5 by 1):
-    say(i)
+var test = ask("name: ")
 
-fruits[2] = "Strawberry"    
-for fruit in fruits:
-    say(fruit)
+var Person{} = {
+    "name": test,
+    "age": 18,
+    "locale": "Cavite"
+}
 
-var name = "Casey"
+say(Person["age"])
 
-say(name)
+for key in Person:
+    say(key + ": " + Person[key])
+    
 
 '''
 
