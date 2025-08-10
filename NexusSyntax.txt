@@ -146,6 +146,7 @@ func countdown(n):
 call it:
 countdown(5)
 
+// DONE
 Array Declaration
 
 var fruits[] = ["Apple", "Orange", "Banana"]
@@ -206,7 +207,7 @@ if isMember and age > 18:
 if city == "Manila" or city == "Cavite":
     say("You're in Luzon!")
 
-(not Logic)
+(not Logic) // DONE
 if not isMember:
     say("Please sign up.")
 
