@@ -44,6 +44,7 @@ x+y addition
 x-y subtraction
 x*y multiplication
 x/y division
+x%y modulo
 
 //DONE
 String Concatenation Decalaration

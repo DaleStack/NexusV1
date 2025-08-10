@@ -17,7 +17,7 @@ say(Person["age"])
 for key in Person:
     say(key + ": " + Person[key])
     
-
+say(6%4)
 '''
 
 tokens = lexer(code)
