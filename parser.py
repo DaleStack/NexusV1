@@ -506,6 +506,16 @@ class Parser:
         elif tok_type == "NUMBER" or tok_type == "STRING":
             self.eat()
             return Literal(tok_value)
+        
+        # ADD THIS: Handle boolean literals
+        elif tok_type == "BOOLEAN":
+            self.eat()
+            # Convert string to actual boolean value
+            if tok_value.lower() == 'true':
+                bool_value = True
+            else:
+                bool_value = False
+            return Literal(bool_value)
 
         elif tok_type == "ID":
             self.eat()
@@ -539,13 +549,34 @@ class Parser:
         return FuncCall(func_name, args)
 
 
+# Test the complete system:
 if __name__ == "__main__":
-    code = '''
-for i in (0 to 5 by 1):
-    say(i)
+    from lexer import lexer
+    from interpreter import Interpreter
+    
+    test_code = '''
+var isMember = True
+var age = 20
+var city = "Manila"
+
+if not isMember:
+    say("Please sign up")
+else:
+    say("Welcome member!")
+
+if isMember and age > 18:
+    say("Adult member access granted")
+
+if city == "Manila" or city == "Cavite":
+    say("You're in Luzon!")
+
+if (age > 18 and isMember) or city == "Manila":
+    say("Complex condition met")
 '''
-    tokens = lexer(code)
+    
+    print("=== TESTING BOOLEAN LOGIC ===")
+    tokens = lexer(test_code)
     parser = Parser(tokens)
     ast = parser.parse()
-    for node in ast:
-        print(node.__class__.__name__, vars(node) if hasattr(node, '__dict__') else node)
+    interpreter = Interpreter()
+    interpreter.run(ast)

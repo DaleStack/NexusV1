@@ -137,15 +137,29 @@ class Interpreter:
                     env[node.name] = None
 
         elif isinstance(node, AssignIndexStmt):
-            collection = self.eval_expr(node.collection, env)
-            index = self.eval_expr(node.index, env)
-            value = self.eval_expr(node.value, env)
-
-            try:
-                collection[index] = value
-            except Exception as e:
-                raise RuntimeError(f"Assignment index error: {e}")
-
+            if node.index is None:
+                # Simple variable assignment: var = value
+                value = self.eval_expr(node.value, env)
+                if isinstance(node.collection, VarRef):
+                    var_name = node.collection.name
+                    
+                    # SIMPLE FIX: If variable exists in global scope, update it there
+                    if var_name in self.env and env != self.env:
+                        self.env[var_name] = value
+                    else:
+                        env[var_name] = value
+                else:
+                    raise RuntimeError("Invalid assignment target")
+            else:
+                # Array index assignment
+                collection = self.eval_expr(node.collection, env)
+                index = self.eval_expr(node.index, env)
+                value = self.eval_expr(node.value, env)
+                try:
+                    collection[index] = value
+                except Exception as e:
+                    raise RuntimeError(f"Assignment index error: {e}")
+                
         elif isinstance(node, SayStmt):
             print(self.eval_expr(node.expr, env))
 

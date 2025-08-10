@@ -14,10 +14,33 @@ TOKEN_SPEC = [
 
 TOKEN_REGEX = "|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC)
 
+# Fixed keywords dictionary
 KEYWORDS = {
-    "var", "say", "ask", "if", "else", "for", "inclusive",
-    "by", "break", "continue", "func", "return", "true", "false",
-    "in", "to"
+    "var": "VAR", 
+    "say": "SAY", 
+    "ask": "ASK", 
+    "if": "IF", 
+    "else": "ELSE", 
+    "for": "FOR", 
+    "inclusive": "INCLUSIVE",
+    "by": "BY", 
+    "break": "BREAK", 
+    "continue": "CONTINUE", 
+    "func": "FUNC", 
+    "return": "RETURN", 
+    "True": "BOOLEAN",     
+    "true": "BOOLEAN",     
+    "False": "BOOLEAN",    
+    "false": "BOOLEAN",    
+    "in": "IN", 
+    "to": "TO"
+}
+
+# IMPORTANT: Special operators that should be OP tokens
+OPERATORS = {
+    "and": "OP",
+    "or": "OP", 
+    "not": "OP"
 }
 
 def lexer(code):
@@ -39,10 +62,11 @@ def lexer(code):
         elif kind == "STRING":
             value = value.strip('"')
         elif kind == "ID":
-            if value in KEYWORDS:
-                kind = value.upper()
-            elif value in ("and", "or", "not"):
-                kind = "OP"
+            # FIXED: Check operators first, then keywords
+            if value in OPERATORS:
+                kind = OPERATORS[value]  # and, or, not -> OP
+            elif value in KEYWORDS:
+                kind = KEYWORDS[value]   # var, say, True, etc. -> their specific types
 
         if kind == "NEWLINE":
             tokens.append(("NEWLINE", value))
@@ -84,16 +108,21 @@ def lexer(code):
 
     return tokens
 
-# Test
+# Test with the problematic code
 if __name__ == "__main__":
-    code = '''
-var name = "John"
-say("Hello, " + name)
-if name == "John":
-    say("It's John")
-    say("Another line")
-else:
-    say("Not John")
+    test_code = '''
+var isMember = True
+if not isMember:
+    say("test")
 '''
-    for t in lexer(code):
-        print(t)
+    
+    print("=== FIXED LEXER TEST ===")
+    tokens = lexer(test_code)
+    for i, token in enumerate(tokens):
+        print(f"{i:2}: {token}")
+        
+    print("\n=== SPECIFIC CHECK ===")
+    print("Looking for 'not' token:")
+    for i, (token_type, token_value) in enumerate(tokens):
+        if token_value == "not":
+            print(f"Found 'not' at position {i}: ({token_type}, '{token_value}')")
