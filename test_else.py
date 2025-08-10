@@ -3,7 +3,7 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-
+# This is a test comment
 var test = ask("name: ")
 
 var Person{} = {
