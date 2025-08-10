@@ -242,8 +242,49 @@ if name == "Alice":
 if city != "Manila":
     say("You're outside the capital.")
 
+// DONE
 Comment Declaration
 # This is a comment
+
+Class Declaration
+
+class Dog():
+    var name str
+    var age int
+
+
+(Class with Method)
+class Dog():
+    var name str
+    var age int
+
+    func speak():
+        say("Woof! My name is "+self.name)
+
+(Class with Initialization)
+class Dog():
+    var name str
+    var age int
+
+    func init(n, a):
+        self.name = n 
+        self.age = a
+
+    func speak():
+        say("Woof! My name is "+self.name)
+
+(Object Instantiation)
+// WITH init
+var pet1 = Dog("Buddy", 3)
+
+//WITHOUT init
+var pet2 = Dog()
+pet2.name = "Buddy"
+pet2.age = 3
+
+(Method invocation)
+pet1.speak()
+
 
 
 

@@ -3,21 +3,11 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-# This is a test comment
-var test = ask("name: ")
+var test str
 
-var Person{} = {
-    "name": test,
-    "age": 18,
-    "locale": "Cavite"
-}
+test = "This is a test"
 
-say(Person["age"])
-
-for key in Person:
-    say(key + ": " + Person[key])
-    
-say(6%4)
+say(test)
 '''
 
 tokens = lexer(code)

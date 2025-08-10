@@ -2,13 +2,14 @@ from lexer import lexer
 
 # AST Node classes
 class VarDecl:
-    def __init__(self, name, value, is_array=False, array_type=None, is_dict=False, dict_type=None):
+    def __init__(self, name, value, is_array=False, array_type=None, is_dict=False, dict_type=None, var_type=None):
         self.name = name
         self.value = value
         self.is_array = is_array
         self.array_type = array_type
         self.is_dict = is_dict
         self.dict_type = dict_type
+        self.var_type = var_type  # For regular type annotations like 'str', 'int'
 
 class SayStmt:
     def __init__(self, expr):
@@ -178,13 +179,14 @@ class Parser:
         array_type = None
         is_dict = False
         dict_type = None
+        var_type = None  # Add this for regular type annotations
 
         # Check for array declaration: var name[]
         if self.current()[0] == "PUNCT" and self.current()[1] == "[":
             self.eat("PUNCT", "[")
             self.eat("PUNCT", "]")
             is_array = True
-            # Optional type annotation
+            # Optional type annotation for arrays
             if self.current()[0] == "ID":
                 _, array_type = self.eat("ID")
         
@@ -193,9 +195,13 @@ class Parser:
             self.eat("PUNCT", "{")
             self.eat("PUNCT", "}")
             is_dict = True
-            # Optional type annotation
+            # Optional type annotation for dictionaries
             if self.current()[0] == "ID":
                 _, dict_type = self.eat("ID")
+        
+        # Check for regular type annotation: var name str
+        elif self.current()[0] == "ID":
+            _, var_type = self.eat("ID")
 
         value = None
         if self.current()[0] == "OP" and self.current()[1] == "=":
@@ -206,7 +212,7 @@ class Parser:
                 value = self.parse_expression()
 
         return VarDecl(name, value, is_array=is_array, array_type=array_type, 
-                      is_dict=is_dict, dict_type=dict_type)
+                    is_dict=is_dict, dict_type=dict_type, var_type=var_type)
 
     def parse_say(self):
         self.eat("SAY")
@@ -638,27 +644,13 @@ if __name__ == "__main__":
     from lexer import lexer
     
     test_code = '''
-var person{} = {
-    "name": "Alice",
-    "age": 30,
-    "isMember": true
-}
+var name str
+var age 
 
-var empty{} = {}
+name = "Test"
+age = 18
 
-var cities{} str = {
-    "ph": "Manila",
-    "us": "New York"
-}
-
-say(person["name"])
-say(person["age"])
-
-person["city"] = "Cavite"
-say(person["city"])
-
-for key in person:
-    say(key + ": " + person[key])
+say(name)
 '''
     
     print("=== TESTING DICTIONARY SUPPORT ===")

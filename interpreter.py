@@ -51,6 +51,29 @@ class Interpreter:
     def __init__(self):
         self.env = Env()          # global environment
         self.functions = {}       # function name -> FuncDecl node
+        self.var_types = {}       # Store variable type information
+
+    def check_type(self, var_name, value):
+        """Check if value matches the declared type for variable"""
+        if var_name not in self.var_types:
+            return  # No type declared, allow anything
+        
+        expected_type = self.var_types[var_name]
+        if expected_type is None:
+            return  # No type constraint
+            
+        # Map your language types to Python types
+        type_map = {
+            'str': str,
+            'int': int,
+            'float': float,
+            'bool': bool
+        }
+        
+        if expected_type in type_map:
+            expected_python_type = type_map[expected_type]
+            if not isinstance(value, expected_python_type):
+                raise TypeError(f"Variable '{var_name}' expects {expected_type} but got {type(value).__name__}")
 
     def eval_expr(self, node, env=None):
         if env is None:
@@ -139,13 +162,19 @@ class Interpreter:
             env = self.env
 
         if isinstance(node, VarDecl):
+            # Store type information if it exists
+            if hasattr(node, 'var_type') and node.var_type:
+                self.var_types[node.name] = node.var_type
+            
             if isinstance(node.value, AskStmt):
                 prompt = self.eval_expr(node.value.prompt_expr, env)
                 user_input = input(str(prompt))
+                self.check_type(node.name, user_input)  # Check type
                 env[node.name] = user_input
             elif node.value is not None:
                 # Evaluate the value (could be DictLiteral, ArrayLiteral, etc.)
                 value = self.eval_expr(node.value, env)
+                self.check_type(node.name, value)  # Check type
                 env[node.name] = value
             else:
                 # Handle empty declarations
@@ -162,6 +191,7 @@ class Interpreter:
                 value = self.eval_expr(node.value, env)
                 if isinstance(node.collection, VarRef):
                     var_name = node.collection.name
+                    self.check_type(var_name, value)  # Check type on assignment
                     
                     # SIMPLE FIX: If variable exists in global scope, update it there
                     if var_name in self.env and env != self.env:
@@ -318,32 +348,26 @@ class Interpreter:
             self.exec_stmt(stmt, self.env)
 
 
-# Test the dictionary functionality
+# Test the type checking functionality
 if __name__ == "__main__":
     test_code = '''
-var person{} = {
-    "name": "Alice",
-    "age": 30,
-    "isMember": true
-}
+var name str
+var age int
 
-var empty{} = {}
+age = "18"
 
-say("Person's name: " + person["name"])
-say("Person's age: " + person["age"])
-
-person["city"] = "Cavite"
-say("Person's city: " + person["city"])
-
-say("Iterating through person dictionary:")
-for key in person:
-    say(key + ": " + person[key])
+say(age)
 '''
 
-    print("=== TESTING DICTIONARY INTERPRETER ===")
+    print("=== TESTING TYPE CHECKING ===")
     tokens = lexer(test_code)
     parser = Parser(tokens)
     ast = parser.parse()
     
     interpreter = Interpreter()
-    interpreter.run(ast)
+    try:
+        interpreter.run(ast)
+    except TypeError as e:
+        print(f"Type Error: {e}")
+    except Exception as e:
+        print(f"Other Error: {e}")
