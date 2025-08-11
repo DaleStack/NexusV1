@@ -29,6 +29,7 @@ class Cat():
 var pet2 = Cat("Navi", 1)
 pet2.meow()
 
+
 '''
 
 tokens = lexer(code)
