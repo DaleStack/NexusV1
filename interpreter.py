@@ -351,15 +351,14 @@ class Interpreter:
 # Test the type checking functionality
 if __name__ == "__main__":
     test_code = '''
-var name str
-var age int
+var name = "This is a string"
+var age float
 
-age = "18"
+age = 1.0
 
-say(age)
+say(2+5)
 '''
 
-    print("=== TESTING TYPE CHECKING ===")
     tokens = lexer(test_code)
     parser = Parser(tokens)
     ast = parser.parse()
