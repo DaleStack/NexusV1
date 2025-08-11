@@ -31,3 +31,20 @@ var b int = 12
 var c float = 3.14
 var d bool = True
 ```
+### Output Declaration
+```
+say("Hello World")
+```
+
+Printing a Variable
+```
+var greet = "Hello World"
+
+say(greet)
+```
+Printing String with Variable
+```
+var a = "World"
+
+say("Hello, " + a)
+```
