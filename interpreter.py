@@ -17,6 +17,20 @@ class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
 
+class StructInstance:
+    """Represents an instance of a struct"""
+    def __init__(self, struct_name, fields):
+        self.struct_name = struct_name
+        self.fields = {}  # field_name -> value
+        # Initialize fields with default values
+        for field_decl in fields:
+            if field_decl.is_array:
+                self.fields[field_decl.name] = []
+            elif field_decl.is_dict:
+                self.fields[field_decl.name] = {}
+            else:
+                self.fields[field_decl.name] = None
+
 
 class Env:
     def __init__(self, parent=None):
