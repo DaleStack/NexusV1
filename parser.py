@@ -117,6 +117,33 @@ class MemberAssignment:
         self.member_name = member_name  # string: name of field to assign
         self.value_expr = value_expr    # expression: value to assign
 
+class ClassDecl:
+    def __init__(self, name, fields, methods):
+        self.name = name          # string: class name
+        self.fields = fields      # list of VarDecl nodes (instance variables)
+        self.methods = methods    # list of MethodDecl nodes
+
+class MethodDecl:
+    def __init__(self, name, params, body, is_init=False):
+        self.name = name          # string: method name
+        self.params = params      # list of param names (strings) - excludes 'self'
+        self.body = body          # list of statements
+        self.is_init = is_init    # boolean: True if this is an __init__ method
+
+class ClassInstantiation:
+    def __init__(self, class_name, args=None):
+        self.class_name = class_name  # string: name of class to instantiate
+        self.args = args or []        # list of expressions for constructor args
+
+class MethodCall:
+    def __init__(self, object_expr, method_name, args):
+        self.object_expr = object_expr  # expression that evaluates to object instance
+        self.method_name = method_name  # string: name of method to call
+        self.args = args               # list of expressions
+
+class SelfRef:
+    """Represents 'self' keyword in class methods"""
+    pass
 
 class Parser:
     def __init__(self, tokens):
@@ -159,6 +186,8 @@ class Parser:
                 statements.append(self.parse_struct_decl())
             elif tok_type == "RETURN":
                 statements.append(self.parse_return())
+            elif tok_type == "CLASS":  # NEW: Handle class declarations
+                statements.append(self.parse_class_decl())
             elif tok_type == "ID":
                 statements.append(self.parse_statement_starting_with_id())
             elif tok_type == "NEWLINE":
@@ -168,7 +197,7 @@ class Parser:
         return statements
     
     def parse_statement_starting_with_id(self):
-        # Enhanced to handle member assignment: obj.field = value
+        # First get the initial identifier
         _, name = self.eat("ID")
         node = VarRef(name)
 
@@ -205,11 +234,30 @@ class Parser:
                 return AssignIndexStmt(node, None, value_expr)
         
         elif self.current()[0] == "PUNCT" and self.current()[1] == "(":
-            # Function call - but we need the original name, not a complex node
-            if isinstance(node, VarRef):
-                return self.parse_func_call_expr(node.name)
+            # Handle method calls and function calls
+            self.eat("PUNCT", "(")
+            args = []
+            if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+                while True:
+                    arg = self.parse_expression()
+                    args.append(arg)
+                    if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                        self.eat("PUNCT", ",")
+                    else:
+                        break
+            self.eat("PUNCT", ")")
+            
+            if isinstance(node, MemberAccess):
+                return MethodCall(node.object_expr, node.member_name, args)
+            elif isinstance(node, VarRef):
+                return FuncCall(node.name, args)
             else:
-                raise SyntaxError("Invalid function call syntax")
+                raise SyntaxError("Invalid function/method call syntax")
+        
+        elif self.current()[0] == "NEWLINE":
+            self.eat("NEWLINE")
+            return node
+        
         else:
             raise SyntaxError(f"Unexpected token after identifier: {self.current()}")
 
@@ -260,6 +308,13 @@ class Parser:
         self.eat("SAY")
         self.eat("PUNCT", "(")
         expr = self.parse_expression()
+        
+        # Handle cases where the expression contains member access
+        while self.current()[0] == "PUNCT" and self.current()[1] == ".":
+            self.eat("PUNCT", ".")
+            _, member = self.eat("ID")
+            expr = MemberAccess(expr, member)
+        
         self.eat("PUNCT", ")")
         return SayStmt(expr)
 
@@ -447,6 +502,60 @@ class Parser:
         if self.current()[0] == "NEWLINE":
             self.eat("NEWLINE")
         return FuncCall(name, args)
+    
+    def parse_class_decl(self):
+        self.eat("CLASS")
+        _, name = self.eat("ID")
+        
+        # Handle inheritance (empty for now)
+        self.eat("PUNCT", "(")
+        self.eat("PUNCT", ")")
+        self.eat("PUNCT", ":")
+        self.eat("NEWLINE")
+        self.eat("INDENT")
+        
+        fields = []
+        methods = []
+        
+        while self.current()[0] != "DEDENT":
+            if self.current()[0] == "VAR":
+                fields.append(self.parse_var_decl())
+            elif self.current()[0] == "FUNC":
+                methods.append(self.parse_method_decl())
+            elif self.current()[0] == "NEWLINE":
+                self.eat("NEWLINE")
+            else:
+                raise SyntaxError(f"Unexpected token in class body: {self.current()}")
+        
+        self.eat("DEDENT")
+        return ClassDecl(name, fields, methods)
+
+    def parse_method_decl(self):
+        self.eat("FUNC")
+        _, name = self.eat("ID")
+        
+        # Special handling for init
+        is_init = (name == "init")
+        
+        self.eat("PUNCT", "(")
+        params = []
+        
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            while True:
+                _, param = self.eat("ID")
+                params.append(param)
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        
+        self.eat("PUNCT", ")")
+        self.eat("PUNCT", ":")
+        self.eat("NEWLINE")
+        self.eat("INDENT")
+        body = self.parse_block()
+        
+        return MethodDecl(name, params, body, is_init)
 
     def parse_array_literal(self):
         self.eat("PUNCT", "[")
@@ -641,6 +750,8 @@ class Parser:
             return BinaryOp(None, "-", right)
         else:
             return self.parse_primary()
+        
+    
 
     def parse_primary(self):
         tok_type, tok_value = self.current()
@@ -657,52 +768,73 @@ class Parser:
         elif tok_type == "PUNCT" and tok_value == "{":
             return self.parse_dict_literal()
 
-        elif tok_type == "NUMBER" or tok_type == "STRING":
+        elif tok_type in ("NUMBER", "STRING"):
             self.eat()
             return Literal(tok_value)
         
         elif tok_type == "BOOLEAN":
             self.eat()
-            bool_value = True if tok_value.lower() == 'true' else False
+            bool_value = tok_value.lower() == 'true'
             return Literal(bool_value)
+        
+        elif tok_type == "SELF" or (tok_type == "ID" and tok_value == "self"):
+            self.eat(tok_type)
+            return SelfRef()
 
         elif tok_type == "ID":
             self.eat()
-            # Check for struct instantiation: Dog() or function call
+            # Handle class instantiation or function call
             if self.current()[0] == "PUNCT" and self.current()[1] == "(":
-                self.eat("PUNCT", "(")
-                args = []
-                if self.current()[0] != "PUNCT" or self.current()[1] != ")":
-                    while True:
-                        arg = self.parse_expression()
-                        args.append(arg)
-                        if self.current()[0] == "PUNCT" and self.current()[1] == ",":
-                            self.eat("PUNCT", ",")
-                        else:
-                            break
-                self.eat("PUNCT", ")")
-                
-                # Could be struct instantiation or function call
-                # We'll determine this in the interpreter based on what's defined
-                return StructInstantiation(tok_value, args)  # Will also handle function calls
-            else:
-                # Variable reference, possibly with member access
-                node = VarRef(tok_value)
-                # Handle member access chains: obj.field1.field2
-                while self.current()[0] == "PUNCT" and self.current()[1] == ".":
+                return self.parse_call_or_instantiation(tok_value)
+            node = VarRef(tok_value)
+            
+            # Handle member access and method calls
+            while True:
+                if self.current()[0] == "PUNCT" and self.current()[1] == ".":
                     self.eat("PUNCT", ".")
-                    _, member_name = self.eat("ID")
-                    node = MemberAccess(node, member_name)
-                # Handle index access: obj[key] or obj.field[key]
-                while self.current()[0] == "PUNCT" and self.current()[1] == "[":
-                    self.eat("PUNCT", "[")
-                    index_expr = self.parse_expression()
-                    self.eat("PUNCT", "]")
-                    node = IndexExpr(node, index_expr)
-                return node
+                    _, member = self.eat("ID")
+                    
+                    if self.current()[0] == "PUNCT" and self.current()[1] == "(":
+                        node = self.parse_method_call(node, member)
+                    else:
+                        node = MemberAccess(node, member)
+                else:
+                    break
+            
+            return node
 
         else:
             raise SyntaxError(f"Unexpected token: {tok_type} {tok_value}")
+        
+    def parse_call_or_instantiation(self, name):
+        self.eat("PUNCT", "(")
+        args = []
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            while True:
+                args.append(self.parse_expression())
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        self.eat("PUNCT", ")")
+        
+        # Assume uppercase names are classes
+        if name[0].isupper():
+            return ClassInstantiation(name, args)
+        return FuncCall(name, args)
+    
+    def parse_method_call(self, obj, method_name):
+        self.eat("PUNCT", "(")
+        args = []
+        if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+            while True:
+                args.append(self.parse_expression())
+                if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                    self.eat("PUNCT", ",")
+                else:
+                    break
+        self.eat("PUNCT", ")")
+        return MethodCall(obj, method_name, args)
 
     def parse_func_call_expr(self, func_name):
         self.eat("PUNCT", "(")
@@ -724,68 +856,34 @@ if __name__ == "__main__":
     from lexer import lexer
     
     test_code = '''
-var isMember bool
-struct Dog():
+class Dog():
     var name str
-    var age int
-    var isGoodBoy bool
+    
+    func bark():
+        say(self.name)
 
-struct Person():
-    var firstName str
-    var lastName str
-    var pet 
-
-var myPet = Dog()
-myPet.name = "Buddy"
-myPet.age = 3
-myPet.isGoodBoy = true
-
-var owner = Person()
-owner.firstName = "John"
-owner.lastName = "Doe"
-owner.pet = myPet
-
-say(myPet.name + " is " + myPet.age + " years old!")
-say("Is " + myPet.name + " a good boy? " + myPet.isGoodBoy)
-say(owner.firstName + " " + owner.lastName + " owns " + owner.pet.name)
-
+var d = Dog()
+d.name = "Buddy"
+d.bark()
 '''
     
-    print("=== TESTING DICTIONARY SUPPORT ===")
+    print("=== TESTING CLASS SUPPORT ===")
     tokens = lexer(test_code)
-    
-    # Debug: Print first 30 tokens to see what's happening
-    print("First 30 tokens:")
-    for i, token in enumerate(tokens[:30]):
-        print(f"{i}: {token}")
-    print("...")
     
     try:
         parser = Parser(tokens)
         ast = parser.parse()
-        print("\n PARSING SUCCESSFUL!")
+        print("\nPARSING SUCCESSFUL!")
         print(f"Generated {len(ast)} AST nodes:")
         
         for i, node in enumerate(ast):
-            if isinstance(node, VarDecl):
-                dict_info = f" (dict: {node.is_dict})" if node.is_dict else ""
-                array_info = f" (array: {node.is_array})" if node.is_array else ""
-                print(f"  {i}: VarDecl '{node.name}'{dict_info}{array_info}")
-            elif isinstance(node, DictLiteral):
-                print(f"  {i}: DictLiteral with {len(node.pairs)} pairs")
-            elif isinstance(node, SayStmt):
-                print(f"  {i}: SayStmt")
-            elif isinstance(node, AssignIndexStmt):
-                print(f"  {i}: AssignIndexStmt (dictionary/array assignment)")
-            elif isinstance(node, ForEachStmt):
-                print(f"  {i}: ForEachStmt (dictionary/array iteration)")
-            else:
-                print(f"  {i}: {type(node).__name__}")
+            print(f"  {i}: {node.__class__.__name__}")
+            if isinstance(node, ClassDecl):
+                print(f"    Class: {node.name}")
+                print(f"    Fields: {[f.name for f in node.fields]}")
+                print(f"    Methods: {[m.name for m in node.methods]}")
                 
-        print("\n Dictionary parsing is working correctly!")
-        print("Next step: Update your interpreter to handle DictLiteral and dictionary operations")
-        
     except Exception as e:
-        print(f"\n PARSING FAILED: {e}")
+        print(f"\nPARSING FAILED: {e}")
         import traceback
         traceback.print_exc()

@@ -3,7 +3,7 @@ import re
 # Token Specification
 TOKEN_SPEC = [
     ("NUMBER",   r"\d+(\.\d+)?"),      
-    ("STRING",   r'"[^"\n]*"'),
+    ("STRING",   r'"[^"\n]*"|\'[^\'\n]*\''),
     ("ID",       r"[A-Za-z_][A-Za-z0-9_]*"), 
     ("OP",       r"==|!=|>=|<=|and|or|not|[+\-*/%=<>]"),
     ("PUNCT",    r"[(){}\[\]:,.]"),  # ADDED: . for member access
@@ -35,6 +35,8 @@ KEYWORDS = {
     "in": "IN", 
     "to": "TO",
     "struct": "STRUCT",  # NEW: struct keyword
+    "class": "CLASS",
+    "self": "SELF",
     # Type keywords
     "int": "TYPE",
     "str": "TYPE", 
