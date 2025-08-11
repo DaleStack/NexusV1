@@ -2,7 +2,7 @@ import re
 
 # Token Specification
 TOKEN_SPEC = [
-    ("NUMBER",   r"\d+(\.\d+)?"),
+    ("NUMBER",   r"\d+(\.\d+)?"),      # This already handles floats!
     ("STRING",   r'"[^"\n]*"'),
     ("ID",       r"[A-Za-z_][A-Za-z0-9_]*"), 
     ("OP",       r"==|!=|>=|<=|and|or|not|[+\-*/%=<>]"),
@@ -14,7 +14,7 @@ TOKEN_SPEC = [
 
 TOKEN_REGEX = "|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC)
 
-# Fixed keywords dictionary
+# Updated keywords dictionary with float
 KEYWORDS = {
     "var": "VAR", 
     "say": "SAY", 
@@ -33,7 +33,12 @@ KEYWORDS = {
     "False": "BOOLEAN",    
     "false": "BOOLEAN",    
     "in": "IN", 
-    "to": "TO"
+    "to": "TO",
+    # NEW: Add float as a type keyword
+    "int": "TYPE",
+    "str": "TYPE", 
+    "bool": "TYPE",
+    "float": "TYPE"
 }
 
 # IMPORTANT: Special operators that should be OP tokens
@@ -58,7 +63,11 @@ def lexer(code):
         value = match.group()
 
         if kind == "NUMBER":
-            value = float(value) if "." in value else int(value)
+            # Enhanced number parsing to distinguish int vs float
+            if "." in value:
+                value = float(value)
+            else:
+                value = int(value)
         elif kind == "STRING":
             value = value.strip('"')
         elif kind == "ID":
@@ -66,7 +75,7 @@ def lexer(code):
             if value in OPERATORS:
                 kind = OPERATORS[value]  # and, or, not -> OP
             elif value in KEYWORDS:
-                kind = KEYWORDS[value]   # var, say, True, etc. -> their specific types
+                kind = KEYWORDS[value]   # var, say, True, int, float, etc. -> their specific types
 
         if kind == "NEWLINE":
             tokens.append(("NEWLINE", value))
@@ -108,21 +117,24 @@ def lexer(code):
 
     return tokens
 
-# Test with the problematic code
+# Test with float support
 if __name__ == "__main__":
     test_code = '''
-var isMember = True
-if not isMember:
-    say("test")
+var price float = 19.99
+var discount float = 0.15
+var total float = price * (1.0 - discount)
+say("Total: " + total)
 '''
     
-    print("=== FIXED LEXER TEST ===")
+    print("=== FLOAT LEXER TEST ===")
     tokens = lexer(test_code)
     for i, token in enumerate(tokens):
         print(f"{i:2}: {token}")
         
-    print("\n=== SPECIFIC CHECK ===")
-    print("Looking for 'not' token:")
+    print("\n=== TYPE CHECKING ===")
+    print("Looking for TYPE tokens:")
     for i, (token_type, token_value) in enumerate(tokens):
-        if token_value == "not":
-            print(f"Found 'not' at position {i}: ({token_type}, '{token_value}')")
+        if token_type == "TYPE":
+            print(f"Found type '{token_value}' at position {i}")
+        elif token_type == "NUMBER" and isinstance(token_value, float):
+            print(f"Found float literal {token_value} at position {i}")
