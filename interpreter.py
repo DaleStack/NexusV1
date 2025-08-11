@@ -3,7 +3,8 @@ from parser import (
     Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt,
     BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt,
     ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt, DictLiteral,
-    StructDecl, StructInstantiation, MemberAccess, MemberAssignment
+    StructDecl, StructInstantiation, MemberAccess, MemberAssignment,
+    ClassDecl, MethodCall, ClassInstantiation, MethodDecl, SelfRef
 )
 
 
@@ -31,6 +32,27 @@ class StructInstance:
                 self.fields[field_decl.name] = {}
             else:
                 self.fields[field_decl.name] = None
+
+class ClassInstance:
+    """Represents an instance of a class"""
+    def __init__(self, class_name, class_decl, interpreter):
+        self.class_name = class_name
+        self.interpreter = interpreter
+        self.fields = {}
+        self.methods = {}
+        
+        # Initialize fields
+        for field in class_decl.fields:
+            if field.is_array:
+                self.fields[field.name] = []
+            elif field.is_dict:
+                self.fields[field.name] = {}
+            else:
+                self.fields[field.name] = None
+        
+        # Store methods
+        for method in class_decl.methods:
+            self.methods[method.name] = method
 
 
 class Env:
@@ -67,6 +89,7 @@ class Interpreter:
         self.env = Env()          # global environment
         self.functions = {}       # function name -> FuncDecl node
         self.var_types = {}       # Store variable type information
+        self.classes = {}         # class name -> ClassDecl node
         self.structs = {}
 
     def check_type(self, var_name, value):
@@ -104,14 +127,53 @@ class Interpreter:
             else:
                 raise NameError(f"Undefined variable '{node.name}'")
         
+        elif isinstance(node, SelfRef):
+            # Handle 'self' keyword - should be in environment when in method context
+            if "self" in env:
+                return env["self"]
+            else:
+                raise NameError("'self' used outside of class method")
+        
+        elif isinstance(node, ClassInstantiation):
+            # Handle class instantiation as an expression (e.g., in assignments)
+            if node.class_name not in self.classes:
+                raise NameError(f"Undefined class '{node.class_name}'")
+            
+            class_decl = self.classes[node.class_name]
+            instance = ClassInstance(node.class_name, class_decl, self)
+            
+            # Call init method if it exists
+            if "init" in instance.methods:
+                init_method = instance.methods["init"]
+                local_env = Env(parent=self.env)
+                
+                # Add self reference
+                local_env["self"] = instance
+                
+                # Add arguments
+                if len(node.args) != len(init_method.params):
+                    raise TypeError(f"init method expects {len(init_method.params)} arguments, got {len(node.args)}")
+                
+                for param, arg in zip(init_method.params, node.args):
+                    local_env[param] = self.eval_expr(arg, env)
+                
+                try:
+                    for stmt in init_method.body:
+                        self.exec_stmt(stmt, local_env)
+                except ReturnException as ret:
+                    pass  # init methods don't typically return values
+            
+            return instance
+        
         elif isinstance(node, MemberAccess):
             # Handle obj.field access
             obj = self.eval_expr(node.object_expr, env)
-            if isinstance(obj, StructInstance):
+            if isinstance(obj, (StructInstance, ClassInstance)):
                 if node.member_name in obj.fields:
                     return obj.fields[node.member_name]
                 else:
-                    raise AttributeError(f"Struct '{obj.struct_name}' has no field '{node.member_name}'")
+                    obj_type = "Class" if isinstance(obj, ClassInstance) else "Struct"
+                    raise AttributeError(f"{obj_type} '{obj.class_name if isinstance(obj, ClassInstance) else obj.struct_name}' has no field '{node.member_name}'")
             else:
                 raise TypeError(f"Cannot access member '{node.member_name}' on {type(obj).__name__}")
         
@@ -193,6 +255,37 @@ class Interpreter:
 
         elif isinstance(node, FuncCall):
             return self.exec_func_call(node, env)
+        
+        elif isinstance(node, MethodCall):
+            # Handle method calls that return values
+            obj = self.eval_expr(node.object_expr, env)
+            method_name = node.method_name
+            
+            if isinstance(obj, ClassInstance):
+                if method_name in obj.methods:
+                    method = obj.methods[method_name]
+                    local_env = Env(parent=self.env)
+                    
+                    # Add self reference
+                    local_env["self"] = obj
+                    
+                    # Add arguments
+                    if len(node.args) != len(method.params):
+                        raise TypeError(f"Method '{method_name}' expects {len(method.params)} arguments, got {len(node.args)}")
+                    
+                    for param, arg in zip(method.params, node.args):
+                        local_env[param] = self.eval_expr(arg, env)
+                    
+                    try:
+                        for stmt in method.body:
+                            self.exec_stmt(stmt, local_env)
+                    except ReturnException as ret:
+                        return ret.value
+                    return None
+                else:
+                    raise AttributeError(f"Class '{obj.class_name}' has no method '{method_name}'")
+            else:
+                raise TypeError(f"Cannot call method '{method_name}' on {type(obj).__name__}")
 
         else:
             raise TypeError(f"Unknown expression node: {node}")
@@ -201,20 +294,22 @@ class Interpreter:
         if env is None:
             env = self.env
         
-        if isinstance(node, StructDecl):
+        if isinstance(node, ClassDecl):
+            # Store class definition
+            self.classes[node.name] = node
+        
+        elif isinstance(node, StructDecl):
             # Store struct definition
             self.structs[node.name] = node
 
         elif isinstance(node, MemberAssignment):
-            # Handle obj.field = value
+            # Handle obj.field = value - THIS IS THE KEY FIX
             obj = self.eval_expr(node.object_expr, env)
             value = self.eval_expr(node.value_expr, env)
             
-            if isinstance(obj, StructInstance):
-                if node.member_name in obj.fields:
-                    obj.fields[node.member_name] = value
-                else:
-                    raise AttributeError(f"Struct '{obj.struct_name}' has no field '{node.member_name}'")
+            if isinstance(obj, (StructInstance, ClassInstance)):
+                # Always allow assignment to any field name, even if not explicitly declared
+                obj.fields[node.member_name] = value
             else:
                 raise TypeError(f"Cannot assign to member '{node.member_name}' on {type(obj).__name__}")
 
@@ -226,12 +321,12 @@ class Interpreter:
             if isinstance(node.value, AskStmt):
                 prompt = self.eval_expr(node.value.prompt_expr, env)
                 user_input = input(str(prompt))
-                self.check_type(node.name, user_input)  # Check type
+                self.check_type(node.name, user_input)
                 env[node.name] = user_input
             elif node.value is not None:
-                # Evaluate the value (could be DictLiteral, ArrayLiteral, etc.)
+                # Evaluate the value (could be ClassInstantiation, etc.)
                 value = self.eval_expr(node.value, env)
-                self.check_type(node.name, value)  # Check type
+                self.check_type(node.name, value)
                 env[node.name] = value
             else:
                 # Handle empty declarations
@@ -248,6 +343,15 @@ class Interpreter:
                 value = self.eval_expr(node.value, env)
                 if isinstance(node.collection, VarRef):
                     var_name = node.collection.name
+                    
+                    # Check if we're in a class method context and trying to assign to a field
+                    if "self" in env and isinstance(env["self"], ClassInstance):
+                        self_instance = env["self"]
+                        # If this variable name matches a field in the class, assign to the field instead
+                        if var_name in self_instance.fields:
+                            self_instance.fields[var_name] = value
+                            return
+                    
                     self.check_type(var_name, value)  # Check type on assignment
                     
                     # SIMPLE FIX: If variable exists in global scope, update it there
@@ -255,6 +359,13 @@ class Interpreter:
                         self.env[var_name] = value
                     else:
                         env[var_name] = value
+                elif isinstance(node.collection, MemberAccess):
+                    # Handle member assignment like self.name = value when parsed as AssignIndexStmt
+                    obj = self.eval_expr(node.collection.object_expr, env)
+                    if isinstance(obj, (StructInstance, ClassInstance)):
+                        obj.fields[node.collection.member_name] = value
+                    else:
+                        raise TypeError(f"Cannot assign to member '{node.collection.member_name}' on {type(obj).__name__}")
                 else:
                     raise RuntimeError("Invalid assignment target")
             else:
@@ -267,27 +378,13 @@ class Interpreter:
                 except Exception as e:
                     raise RuntimeError(f"Assignment index error: {e}")
         
-        elif isinstance(node, AssignIndexStmt):
-            if node.index is None:
-                value = self.eval_expr(node.value, env)
-                if isinstance(node.collection, VarRef):
-                    var_name = node.collection.name
-                    self.check_type(var_name, value)
-                    
-                    if var_name in self.env and env != self.env:
-                        self.env[var_name] = value
-                    else:
-                        env[var_name] = value
-                else:
-                    raise RuntimeError("Invalid assignment target")
-            else:
-                collection = self.eval_expr(node.collection, env)
-                index = self.eval_expr(node.index, env)
-                value = self.eval_expr(node.value, env)
-                try:
-                    collection[index] = value
-                except Exception as e:
-                    raise RuntimeError(f"Assignment index error: {e}")
+        elif isinstance(node, MethodCall):
+            # Handle method calls like obj.method(args) - when used as statements
+            self.eval_expr(node, env)  # Use the eval_expr version
+
+        elif isinstance(node, ClassInstantiation):
+            # Handle class instantiation as a statement (shouldn't normally happen)
+            return self.eval_expr(node, env)
                 
         elif isinstance(node, SayStmt):
             result = self.eval_expr(node.expr, env)
@@ -427,40 +524,65 @@ class Interpreter:
             self.exec_stmt(stmt, self.env)
 
 
-# Test the type checking functionality
 if __name__ == "__main__":
+    # Debug test for init method
     test_code = '''
-struct Dog():
+class Dog():
     var name str
     var age int
-
-struct Person():
-    var name str
-    var pet 
     
-var myPet = Dog()
-myPet.name = "Kokoy"
-myPet.age = 3
+    func init(n, a):
+        say("Init called with:")
+        say(n)
+        say(a)
+        self.name = n
+        self.age = a
+        say("Init finished")
 
-var owner = Person()
-owner.name = "Kei"
-owner.pet = myPet
+    func bark():
+        say(self.name + " says woof!")
 
-say(myPet.name)
-say(owner.pet.name)
-
-say(myPet.age)
-say(owner.pet.age)
+say("Creating dog...")
+var pet = Dog("Buddy", 3)
+say("Dog created")
+pet.bark()
+say("Name:")
+say(pet.name)
+say("Age:")
+say(pet.age)
 '''
 
     tokens = lexer(test_code)
     parser = Parser(tokens)
     ast = parser.parse()
     
+    print("=== AST ===")
+    for i, node in enumerate(ast):
+        print(f"{i}: {node.__class__.__name__}")
+        if isinstance(node, ClassDecl):
+            print(f"   Class: {node.name}")
+            for method in node.methods:
+                print(f"   Method: {method.name}, params: {method.params}")
+                if method.name == "init":
+                    print(f"   Init method body:")
+                    for j, stmt in enumerate(method.body):
+                        print(f"     {j}: {stmt.__class__.__name__}")
+                        if isinstance(stmt, AssignIndexStmt):
+                            print(f"        collection: {stmt.collection.__class__.__name__}")
+                            if isinstance(stmt.collection, VarRef):
+                                print(f"        collection name: '{stmt.collection.name}'")
+                            if isinstance(stmt.collection, MemberAccess):
+                                print(f"        object: {stmt.collection.object_expr.__class__.__name__}")
+                                print(f"        member: {stmt.collection.member_name}")
+                        elif isinstance(stmt, MemberAssignment):
+                            print(f"        object: {stmt.object_expr.__class__.__name__}")
+                            print(f"        member: {stmt.member_name}")
+    
+    print("\n=== EXECUTION ===")
     interpreter = Interpreter()
     try:
         interpreter.run(ast)
-    except TypeError as e:
-        print(f"Type Error: {e}")
     except Exception as e:
-        print(f"Other Error: {e}")
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()

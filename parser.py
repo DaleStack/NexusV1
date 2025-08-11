@@ -307,14 +307,7 @@ class Parser:
     def parse_say(self):
         self.eat("SAY")
         self.eat("PUNCT", "(")
-        expr = self.parse_expression()
-        
-        # Handle cases where the expression contains member access
-        while self.current()[0] == "PUNCT" and self.current()[1] == ".":
-            self.eat("PUNCT", ".")
-            _, member = self.eat("ID")
-            expr = MemberAccess(expr, member)
-        
+        expr = self.parse_expression()  # This already handles member access and binary operations
         self.eat("PUNCT", ")")
         return SayStmt(expr)
 
@@ -779,7 +772,22 @@ class Parser:
         
         elif tok_type == "SELF" or (tok_type == "ID" and tok_value == "self"):
             self.eat(tok_type)
-            return SelfRef()
+            node = SelfRef()
+            
+            # FIX: Handle member access and method calls for self too!
+            while True:
+                if self.current()[0] == "PUNCT" and self.current()[1] == ".":
+                    self.eat("PUNCT", ".")
+                    _, member = self.eat("ID")
+                    
+                    if self.current()[0] == "PUNCT" and self.current()[1] == "(":
+                        node = self.parse_method_call(node, member)
+                    else:
+                        node = MemberAccess(node, member)
+                else:
+                    break
+            
+            return node
 
         elif tok_type == "ID":
             self.eat()
@@ -805,6 +813,7 @@ class Parser:
 
         else:
             raise SyntaxError(f"Unexpected token: {tok_type} {tok_value}")
+
         
     def parse_call_or_instantiation(self, name):
         self.eat("PUNCT", "(")

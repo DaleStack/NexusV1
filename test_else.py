@@ -3,29 +3,32 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-struct Dog():
+class Dog():
     var name str
     var age int
-    var isGoodBoy bool
 
-struct Person():
-    var firstName str
-    var lastName str
-    var pet
+    func bark():
+        say(self.name + " barks at you!")
 
-var myPet = Dog()
-myPet.name = "Buddy"
-myPet.age = 3
-myPet.isGoodBoy = true
+var pet1 = Dog()
+pet1.name = "Buddy"
+pet1.age = 3
+pet1.bark()
 
-var owner = Person()
-owner.firstName = "John"
-owner.lastName = "Doe"
-owner.pet = myPet
+class Cat():
+    var name str
+    var age int
 
-say(myPet.name + " is " + myPet.age + " years old!")
-say("Is " + myPet.name + " a good boy? " + myPet.isGoodBoy)
-say(owner.firstName + " " + owner.lastName + " owns " + owner.pet.name)
+    func init(n, a):
+        self.name = n
+        self.age = a
+    
+    func meow():
+        say(self.name + " meows at you!")
+
+var pet2 = Cat("Navi", 1)
+pet2.meow()
+
 '''
 
 tokens = lexer(code)
