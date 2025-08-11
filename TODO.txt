@@ -24,3 +24,37 @@ Struct DECLARATION
 Class DECLARATION
 
 TYPE CHECKING
+
+BUG
+
+ARRAY AND DICT
+
+var fruits[] str = []
+THIS CAN STILL TAKE NUMBERS
+
+var nums[] int []
+THIS CAN STILL TAKE STRINGS
+
+var fruits{} str = {}
+THIS CAN STILL TAKE NUMBERS
+
+var nums{} int {}
+THIS CAN STILL TAKE STRINGS
+
+STRUCT
+
+WHY THIS WORKS EVEN with type notation
+
+struct Dog():
+    var name str
+    var age int
+
+var pet1 = Dog()
+pet1.name = 1
+pet1.age = "2"
+
+say(pet1.name)
+say(pet1.age)
+
+
+

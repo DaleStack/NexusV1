@@ -727,10 +727,26 @@ if __name__ == "__main__":
 struct Dog():
     var name str
     var age int
+    var isGoodBoy bool
 
-var pet1 = Dog()
-pet1.name = "Buddy"
-pet1.age = 18
+struct Person():
+    var firstName str
+    var lastName str
+    var pet 
+
+var myPet = Dog()
+myPet.name = "Buddy"
+myPet.age = 3
+myPet.isGoodBoy = true
+
+var owner = Person()
+owner.firstName = "John"
+owner.lastName = "Doe"
+owner.pet = myPet
+
+say(myPet.name + " is " + myPet.age + " years old!")
+say("Is " + myPet.name + " a good boy? " + myPet.isGoodBoy)
+say(owner.firstName + " " + owner.lastName + " owns " + owner.pet.name)
 
 '''
     

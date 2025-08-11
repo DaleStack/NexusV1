@@ -2,7 +2,8 @@ from lexer import lexer
 from parser import (
     Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt,
     BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt,
-    ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt, DictLiteral
+    ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt, DictLiteral,
+    StructDecl, StructInstantiation, MemberAccess, MemberAssignment
 )
 
 
@@ -66,6 +67,7 @@ class Interpreter:
         self.env = Env()          # global environment
         self.functions = {}       # function name -> FuncDecl node
         self.var_types = {}       # Store variable type information
+        self.structs = {}
 
     def check_type(self, var_name, value):
         """Check if value matches the declared type for variable"""
@@ -101,6 +103,30 @@ class Interpreter:
                 return env[node.name]
             else:
                 raise NameError(f"Undefined variable '{node.name}'")
+        
+        elif isinstance(node, MemberAccess):
+            # Handle obj.field access
+            obj = self.eval_expr(node.object_expr, env)
+            if isinstance(obj, StructInstance):
+                if node.member_name in obj.fields:
+                    return obj.fields[node.member_name]
+                else:
+                    raise AttributeError(f"Struct '{obj.struct_name}' has no field '{node.member_name}'")
+            else:
+                raise TypeError(f"Cannot access member '{node.member_name}' on {type(obj).__name__}")
+        
+        elif isinstance(node, StructInstantiation):
+            # Handle struct instantiation: Dog() or function calls
+            if node.struct_name in self.structs:
+                # It's a struct instantiation
+                struct_decl = self.structs[node.struct_name]
+                return StructInstance(node.struct_name, struct_decl.fields)
+            elif node.struct_name in self.functions:
+                # It's a function call (reuse existing logic)
+                func_call = FuncCall(node.struct_name, node.args)
+                return self.exec_func_call(func_call, env)
+            else:
+                raise NameError(f"Undefined struct or function '{node.struct_name}'")
 
         elif isinstance(node, BinaryOp):
             left = self.eval_expr(node.left, env) if node.left else None
@@ -174,8 +200,25 @@ class Interpreter:
     def exec_stmt(self, node, env=None):
         if env is None:
             env = self.env
+        
+        if isinstance(node, StructDecl):
+            # Store struct definition
+            self.structs[node.name] = node
 
-        if isinstance(node, VarDecl):
+        elif isinstance(node, MemberAssignment):
+            # Handle obj.field = value
+            obj = self.eval_expr(node.object_expr, env)
+            value = self.eval_expr(node.value_expr, env)
+            
+            if isinstance(obj, StructInstance):
+                if node.member_name in obj.fields:
+                    obj.fields[node.member_name] = value
+                else:
+                    raise AttributeError(f"Struct '{obj.struct_name}' has no field '{node.member_name}'")
+            else:
+                raise TypeError(f"Cannot assign to member '{node.member_name}' on {type(obj).__name__}")
+
+        elif isinstance(node, VarDecl):
             # Store type information if it exists
             if hasattr(node, 'var_type') and node.var_type:
                 self.var_types[node.name] = node.var_type
@@ -216,6 +259,28 @@ class Interpreter:
                     raise RuntimeError("Invalid assignment target")
             else:
                 # Array/Dictionary index assignment: collection[index] = value
+                collection = self.eval_expr(node.collection, env)
+                index = self.eval_expr(node.index, env)
+                value = self.eval_expr(node.value, env)
+                try:
+                    collection[index] = value
+                except Exception as e:
+                    raise RuntimeError(f"Assignment index error: {e}")
+        
+        elif isinstance(node, AssignIndexStmt):
+            if node.index is None:
+                value = self.eval_expr(node.value, env)
+                if isinstance(node.collection, VarRef):
+                    var_name = node.collection.name
+                    self.check_type(var_name, value)
+                    
+                    if var_name in self.env and env != self.env:
+                        self.env[var_name] = value
+                    else:
+                        env[var_name] = value
+                else:
+                    raise RuntimeError("Invalid assignment target")
+            else:
                 collection = self.eval_expr(node.collection, env)
                 index = self.eval_expr(node.index, env)
                 value = self.eval_expr(node.value, env)
@@ -365,12 +430,27 @@ class Interpreter:
 # Test the type checking functionality
 if __name__ == "__main__":
     test_code = '''
-var name = "This is a string"
-var age float
+struct Dog():
+    var name str
+    var age int
 
-age = 1.0
+struct Person():
+    var name str
+    var pet 
+    
+var myPet = Dog()
+myPet.name = "Kokoy"
+myPet.age = 3
 
-say(2+5)
+var owner = Person()
+owner.name = "Kei"
+owner.pet = myPet
+
+say(myPet.name)
+say(owner.pet.name)
+
+say(myPet.age)
+say(owner.pet.age)
 '''
 
     tokens = lexer(test_code)
