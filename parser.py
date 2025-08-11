@@ -187,8 +187,8 @@ class Parser:
             self.eat("PUNCT", "]")
             is_array = True
             # Optional type annotation for arrays
-            if self.current()[0] == "ID":
-                _, array_type = self.eat("ID")
+            if self.current()[0] == "TYPE":  # CHANGED: ID -> TYPE
+                _, array_type = self.eat("TYPE")
         
         # Check for dictionary declaration: var name{}
         elif self.current()[0] == "PUNCT" and self.current()[1] == "{":
@@ -196,12 +196,12 @@ class Parser:
             self.eat("PUNCT", "}")
             is_dict = True
             # Optional type annotation for dictionaries
-            if self.current()[0] == "ID":
-                _, dict_type = self.eat("ID")
+            if self.current()[0] == "TYPE":  # CHANGED: ID -> TYPE
+                _, dict_type = self.eat("TYPE")
         
-        # Check for regular type annotation: var name str
-        elif self.current()[0] == "ID":
-            _, var_type = self.eat("ID")
+        # Check for regular type annotation: var name str/int/float/bool
+        elif self.current()[0] == "TYPE":  # CHANGED: ID -> TYPE
+            _, var_type = self.eat("TYPE")
 
         value = None
         if self.current()[0] == "OP" and self.current()[1] == "=":
