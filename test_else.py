@@ -6,13 +6,26 @@ code = '''
 struct Dog():
     var name str
     var age int
+    var isGoodBoy bool
 
-var pet1 = Dog()
-pet1.name = 1
-pet1.age = "2"
+struct Person():
+    var firstName str
+    var lastName str
+    var pet
 
-say(pet1.name)
-say(pet1.age)
+var myPet = Dog()
+myPet.name = "Buddy"
+myPet.age = 3
+myPet.isGoodBoy = true
+
+var owner = Person()
+owner.firstName = "John"
+owner.lastName = "Doe"
+owner.pet = myPet
+
+say(myPet.name + " is " + myPet.age + " years old!")
+say("Is " + myPet.name + " a good boy? " + myPet.isGoodBoy)
+say(owner.firstName + " " + owner.lastName + " owns " + owner.pet.name)
 '''
 
 tokens = lexer(code)

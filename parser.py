@@ -724,6 +724,7 @@ if __name__ == "__main__":
     from lexer import lexer
     
     test_code = '''
+var isMember bool
 struct Dog():
     var name str
     var age int
