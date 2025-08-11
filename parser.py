@@ -96,6 +96,27 @@ class DictLiteral:
     def __init__(self, pairs):
         self.pairs = pairs  # list of (key_expr, value_expr) tuples
 
+class StructDecl:
+    def __init__(self, name, fields):
+        self.name = name          # string: struct name
+        self.fields = fields      # list of VarDecl nodes (the struct fields)
+
+class StructInstantiation:
+    def __init__(self, struct_name, args=None):
+        self.struct_name = struct_name  # string: name of struct to instantiate
+        self.args = args or []          # list of expressions (for future constructor args)
+
+class MemberAccess:
+    def __init__(self, object_expr, member_name):
+        self.object_expr = object_expr  # expression that evaluates to struct instance
+        self.member_name = member_name  # string: name of field to access
+
+class MemberAssignment:
+    def __init__(self, object_expr, member_name, value_expr):
+        self.object_expr = object_expr  # expression that evaluates to struct instance
+        self.member_name = member_name  # string: name of field to assign
+        self.value_expr = value_expr    # expression: value to assign
+
 
 class Parser:
     def __init__(self, tokens):
@@ -134,6 +155,8 @@ class Parser:
                 statements.append(self.parse_ask())
             elif tok_type == "FUNC":
                 statements.append(self.parse_func_decl())
+            elif tok_type == "STRUCT":  # NEW: Handle struct declarations
+                statements.append(self.parse_struct_decl())
             elif tok_type == "RETURN":
                 statements.append(self.parse_return())
             elif tok_type == "ID":
@@ -143,31 +166,50 @@ class Parser:
             else:
                 self.pos += 1
         return statements
-
+    
     def parse_statement_starting_with_id(self):
-        # Parse a statement that starts with ID: could be assignment to index or function call
+        # Enhanced to handle member assignment: obj.field = value
         _, name = self.eat("ID")
         node = VarRef(name)
 
-        # Parse index chains like fruits[2][3] or person["name"]
-        while self.current()[0] == "PUNCT" and self.current()[1] == "[":
-            self.eat("PUNCT", "[")
-            index_expr = self.parse_expression()
-            self.eat("PUNCT", "]")
-            node = IndexExpr(node, index_expr)
+        # Handle chained access: obj.field1.field2 or obj[index].field
+        while True:
+            if self.current()[0] == "PUNCT" and self.current()[1] == "[":
+                # Array/dict index: obj[key]
+                self.eat("PUNCT", "[")
+                index_expr = self.parse_expression()
+                self.eat("PUNCT", "]")
+                node = IndexExpr(node, index_expr)
+            elif self.current()[0] == "PUNCT" and self.current()[1] == ".":
+                # Member access: obj.field
+                self.eat("PUNCT", ".")
+                _, member_name = self.eat("ID")
+                node = MemberAccess(node, member_name)
+            else:
+                break
 
-        # Now check if assignment or function call
+        # Now check what to do with the final node
         if self.current()[0] == "OP" and self.current()[1] == "=":
+            # Assignment
             self.eat("OP", "=")
             value_expr = self.parse_expression()
             if self.current()[0] == "NEWLINE":
                 self.eat("NEWLINE")
-            return AssignIndexStmt(node.collection if isinstance(node, IndexExpr) else node,
-                                   node.index if isinstance(node, IndexExpr) else None,
-                                   value_expr)
+            
+            # Determine assignment type
+            if isinstance(node, MemberAccess):
+                return MemberAssignment(node.object_expr, node.member_name, value_expr)
+            elif isinstance(node, IndexExpr):
+                return AssignIndexStmt(node.collection, node.index, value_expr)
+            else:  # VarRef
+                return AssignIndexStmt(node, None, value_expr)
+        
         elif self.current()[0] == "PUNCT" and self.current()[1] == "(":
-            # function call
-            return self.parse_func_call_expr(name)
+            # Function call - but we need the original name, not a complex node
+            if isinstance(node, VarRef):
+                return self.parse_func_call_expr(node.name)
+            else:
+                raise SyntaxError("Invalid function call syntax")
         else:
             raise SyntaxError(f"Unexpected token after identifier: {self.current()}")
 
@@ -480,6 +522,29 @@ class Parser:
         
         self.eat("PUNCT", "}")
         return DictLiteral(pairs)
+    
+    def parse_struct_decl(self):
+        """Parse: struct Dog(): \n INDENT var name str \n var age int \n DEDENT"""
+        self.eat("STRUCT")
+        _, name = self.eat("ID")
+        self.eat("PUNCT", "(")
+        self.eat("PUNCT", ")")
+        self.eat("PUNCT", ":")
+        self.eat("NEWLINE")
+        self.eat("INDENT")
+        
+        # Parse field declarations (only var declarations allowed in structs)
+        fields = []
+        while self.current()[0] not in ("DEDENT", None):
+            if self.current()[0] == "VAR":
+                fields.append(self.parse_var_decl())
+            elif self.current()[0] == "NEWLINE":
+                self.eat("NEWLINE")
+            else:
+                raise SyntaxError(f"Only variable declarations allowed in struct, got {self.current()}")
+        
+        self.eat("DEDENT")
+        return StructDecl(name, fields)
 
     def parse_block(self):
         statements = []
@@ -596,24 +661,39 @@ class Parser:
             self.eat()
             return Literal(tok_value)
         
-        # Handle boolean literals
         elif tok_type == "BOOLEAN":
             self.eat()
-            # Convert string to actual boolean value
-            if tok_value.lower() == 'true':
-                bool_value = True
-            else:
-                bool_value = False
+            bool_value = True if tok_value.lower() == 'true' else False
             return Literal(bool_value)
 
         elif tok_type == "ID":
             self.eat()
-            # Check for function call or index access
+            # Check for struct instantiation: Dog() or function call
             if self.current()[0] == "PUNCT" and self.current()[1] == "(":
-                return self.parse_func_call_expr(tok_value)
+                self.eat("PUNCT", "(")
+                args = []
+                if self.current()[0] != "PUNCT" or self.current()[1] != ")":
+                    while True:
+                        arg = self.parse_expression()
+                        args.append(arg)
+                        if self.current()[0] == "PUNCT" and self.current()[1] == ",":
+                            self.eat("PUNCT", ",")
+                        else:
+                            break
+                self.eat("PUNCT", ")")
+                
+                # Could be struct instantiation or function call
+                # We'll determine this in the interpreter based on what's defined
+                return StructInstantiation(tok_value, args)  # Will also handle function calls
             else:
+                # Variable reference, possibly with member access
                 node = VarRef(tok_value)
-                # Handle index access like person["name"] or array[0]
+                # Handle member access chains: obj.field1.field2
+                while self.current()[0] == "PUNCT" and self.current()[1] == ".":
+                    self.eat("PUNCT", ".")
+                    _, member_name = self.eat("ID")
+                    node = MemberAccess(node, member_name)
+                # Handle index access: obj[key] or obj.field[key]
                 while self.current()[0] == "PUNCT" and self.current()[1] == "[":
                     self.eat("PUNCT", "[")
                     index_expr = self.parse_expression()
@@ -644,13 +724,14 @@ if __name__ == "__main__":
     from lexer import lexer
     
     test_code = '''
-var name str
-var age 
+struct Dog():
+    var name str
+    var age int
 
-name = "Test"
-age = 18
+var pet1 = Dog()
+pet1.name = "Buddy"
+pet1.age = 18
 
-say(name)
 '''
     
     print("=== TESTING DICTIONARY SUPPORT ===")
