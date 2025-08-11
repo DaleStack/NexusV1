@@ -1,5 +1,9 @@
 NexusV1
 
+DATA TYPES
+
+int, float, str, boolean, array, dict, null
+
 // DONE
 Variable Declaration 
 
@@ -245,6 +249,20 @@ if city != "Manila":
 // DONE
 Comment Declaration
 # This is a comment
+
+
+Struct Declaration
+Note: Struct can only hold data, nothing else.
+struct Dog():
+    var name str
+    var age int
+
+(Object Instantiation)
+var myPet = Dog()
+myPet.name = "Buddy"
+myPet.age = 3
+
+say(myPet.name+" is "+myPet.age+" years old!")
 
 Class Declaration
 

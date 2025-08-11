@@ -2,11 +2,11 @@ import re
 
 # Token Specification
 TOKEN_SPEC = [
-    ("NUMBER",   r"\d+(\.\d+)?"),      # This already handles floats!
+    ("NUMBER",   r"\d+(\.\d+)?"),      
     ("STRING",   r'"[^"\n]*"'),
     ("ID",       r"[A-Za-z_][A-Za-z0-9_]*"), 
     ("OP",       r"==|!=|>=|<=|and|or|not|[+\-*/%=<>]"),
-    ("PUNCT",    r"[(){}\[\]:,]"),
+    ("PUNCT",    r"[(){}\[\]:,.]"),  # ADDED: . for member access
     ("NEWLINE",  r"\n"),
     ("SKIP",     r"[ \t]+"),
     ("COMMENT",  r"#.*"),
@@ -14,7 +14,7 @@ TOKEN_SPEC = [
 
 TOKEN_REGEX = "|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC)
 
-# Updated keywords dictionary with float
+# Updated keywords dictionary with struct
 KEYWORDS = {
     "var": "VAR", 
     "say": "SAY", 
@@ -34,7 +34,8 @@ KEYWORDS = {
     "false": "BOOLEAN",    
     "in": "IN", 
     "to": "TO",
-    # NEW: Add float as a type keyword
+    "struct": "STRUCT",  # NEW: struct keyword
+    # Type keywords
     "int": "TYPE",
     "str": "TYPE", 
     "bool": "TYPE",
@@ -63,7 +64,6 @@ def lexer(code):
         value = match.group()
 
         if kind == "NUMBER":
-            # Enhanced number parsing to distinguish int vs float
             if "." in value:
                 value = float(value)
             else:
@@ -71,11 +71,11 @@ def lexer(code):
         elif kind == "STRING":
             value = value.strip('"')
         elif kind == "ID":
-            # FIXED: Check operators first, then keywords
+            # Check operators first, then keywords
             if value in OPERATORS:
-                kind = OPERATORS[value]  # and, or, not -> OP
+                kind = OPERATORS[value]  
             elif value in KEYWORDS:
-                kind = KEYWORDS[value]   # var, say, True, int, float, etc. -> their specific types
+                kind = KEYWORDS[value]   
 
         if kind == "NEWLINE":
             tokens.append(("NEWLINE", value))
@@ -117,24 +117,20 @@ def lexer(code):
 
     return tokens
 
-# Test with float support
+# Test struct lexing
 if __name__ == "__main__":
     test_code = '''
-var price float = 19.99
-var discount float = 0.15
-var total float = price * (1.0 - discount)
-say("Total: " + total)
+struct Dog():
+    var name str
+    var age int
+
+var myPet = Dog()
+myPet.name = "Buddy"
+myPet.age = 3
+say(myPet.name)
 '''
     
-    print("=== FLOAT LEXER TEST ===")
+    print("=== STRUCT LEXER TEST ===")
     tokens = lexer(test_code)
     for i, token in enumerate(tokens):
         print(f"{i:2}: {token}")
-        
-    print("\n=== TYPE CHECKING ===")
-    print("Looking for TYPE tokens:")
-    for i, (token_type, token_value) in enumerate(tokens):
-        if token_type == "TYPE":
-            print(f"Found type '{token_value}' at position {i}")
-        elif token_type == "NUMBER" and isinstance(token_value, float):
-            print(f"Found float literal {token_value} at position {i}")

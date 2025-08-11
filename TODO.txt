@@ -20,7 +20,7 @@ dict.length()            // Number of key-value pairs
 dict.keys()              // Return array of keys
 dict.values()            // Return array of values
 
-
-CLASS DECLARATION
+Struct DECLARATION
+Class DECLARATION
 
 TYPE CHECKING
