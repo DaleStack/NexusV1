@@ -3,33 +3,28 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-class Dog():
+struct Dog():
     var name str
     var age int
-
-    func bark():
-        say(self.name + " barks at you!")
 
 var pet1 = Dog()
 pet1.name = "Buddy"
-pet1.age = 3
-pet1.bark()
+pet1.age = 5
 
-class Cat():
+say(pet1.name)
+say(pet1.age)
+
+class Person():
     var name str
-    var age int
 
-    func init(n, a):
+    func init(n):
         self.name = n
-        self.age = a
     
-    func meow():
-        say(self.name + " meows at you!")
+    func say_name():
+        say("Hello, I am "+self.name)
 
-var pet2 = Cat("Navi", 1)
-pet2.meow()
-
-
+var Me = Person("Kei")
+Me.say_name()
 '''
 
 tokens = lexer(code)

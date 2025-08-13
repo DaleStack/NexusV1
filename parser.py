@@ -865,15 +865,12 @@ if __name__ == "__main__":
     from lexer import lexer
     
     test_code = '''
-class Dog():
+struct Dog():
     var name str
-    
-    func bark():
-        say(self.name)
 
-var d = Dog()
-d.name = "Buddy"
-d.bark()
+var pet = Dog()
+pet.name = "Buddy"
+say(pet.name)
 '''
     
     print("=== TESTING CLASS SUPPORT ===")

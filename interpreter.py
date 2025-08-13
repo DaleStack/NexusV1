@@ -1,3 +1,4 @@
+from platform import node
 from lexer import lexer
 from parser import (
     Parser, Literal, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt,
@@ -23,15 +24,18 @@ class StructInstance:
     """Represents an instance of a struct"""
     def __init__(self, struct_name, fields):
         self.struct_name = struct_name
-        self.fields = {}  # field_name -> value
-        # Initialize fields with default values
-        for field_decl in fields:
-            if field_decl.is_array:
-                self.fields[field_decl.name] = []
-            elif field_decl.is_dict:
-                self.fields[field_decl.name] = {}
+        self.fields = {}
+        # Initialize fields with None or empty collections
+        for field in fields:
+            if field.is_array:
+                self.fields[field.name] = []
+            elif field.is_dict:
+                self.fields[field.name] = {}
             else:
-                self.fields[field_decl.name] = None
+                self.fields[field.name] = None
+    
+    def __str__(self):
+        return f"<struct {self.struct_name} instance>"
 
 class ClassInstance:
     """Represents an instance of a class"""
@@ -135,35 +139,41 @@ class Interpreter:
                 raise NameError("'self' used outside of class method")
         
         elif isinstance(node, ClassInstantiation):
-            # Handle class instantiation as an expression (e.g., in assignments)
-            if node.class_name not in self.classes:
-                raise NameError(f"Undefined class '{node.class_name}'")
-            
-            class_decl = self.classes[node.class_name]
-            instance = ClassInstance(node.class_name, class_decl, self)
-            
-            # Call init method if it exists
-            if "init" in instance.methods:
-                init_method = instance.methods["init"]
-                local_env = Env(parent=self.env)
-                
-                # Add self reference
-                local_env["self"] = instance
-                
-                # Add arguments
-                if len(node.args) != len(init_method.params):
-                    raise TypeError(f"init method expects {len(init_method.params)} arguments, got {len(node.args)}")
-                
-                for param, arg in zip(init_method.params, node.args):
-                    local_env[param] = self.eval_expr(arg, env)
-                
-                try:
-                    for stmt in init_method.body:
-                        self.exec_stmt(stmt, local_env)
-                except ReturnException as ret:
-                    pass  # init methods don't typically return values
-            
-            return instance
+            # First attempt: check if class exists
+            if node.class_name in self.classes:
+                class_decl = self.classes[node.class_name]
+                instance = ClassInstance(node.class_name, class_decl, self)
+
+                # Call init method if it exists
+                if "init" in instance.methods:
+                    init_method = instance.methods["init"]
+                    local_env = Env(parent=self.env)
+
+                    # Add self reference
+                    local_env["self"] = instance
+
+                    # Check number of args
+                    if len(node.args) != len(init_method.params):
+                        raise TypeError(f"init method expects {len(init_method.params)} arguments, got {len(node.args)}")
+                    # Evaluate and bind arguments
+                    for param, arg in zip(init_method.params, node.args):
+                        local_env[param] = self.eval_expr(arg, env)
+
+                    try:
+                        for stmt in init_method.body:
+                            self.exec_stmt(stmt, local_env)
+                    except ReturnException:
+                        pass  # Init usually does not return
+                return instance
+
+            # Fallback: if no class found, check if a struct exists with that name
+            elif node.class_name in self.structs:
+                struct_decl = self.structs[node.class_name]
+                instance = StructInstance(struct_decl.name, struct_decl.fields)
+                return instance
+
+            else:
+                raise NameError(f"Undefined class or struct '{node.class_name}'")
         
         elif isinstance(node, MemberAccess):
             # Handle obj.field access
@@ -178,17 +188,12 @@ class Interpreter:
                 raise TypeError(f"Cannot access member '{node.member_name}' on {type(obj).__name__}")
         
         elif isinstance(node, StructInstantiation):
-            # Handle struct instantiation: Dog() or function calls
-            if node.struct_name in self.structs:
-                # It's a struct instantiation
-                struct_decl = self.structs[node.struct_name]
-                return StructInstance(node.struct_name, struct_decl.fields)
-            elif node.struct_name in self.functions:
-                # It's a function call (reuse existing logic)
-                func_call = FuncCall(node.struct_name, node.args)
-                return self.exec_func_call(func_call, env)
-            else:
-                raise NameError(f"Undefined struct or function '{node.struct_name}'")
+            if node.struct_name not in self.structs:
+                raise NameError(f"Undefined struct '{node.struct_name}'")
+            
+            struct_decl = self.structs[node.struct_name]
+            instance = StructInstance(struct_decl.name, struct_decl.fields)
+            return instance
 
         elif isinstance(node, BinaryOp):
             left = self.eval_expr(node.left, env) if node.left else None
@@ -324,8 +329,14 @@ class Interpreter:
                 self.check_type(node.name, user_input)
                 env[node.name] = user_input
             elif node.value is not None:
-                # Evaluate the value (could be ClassInstantiation, etc.)
-                value = self.eval_expr(node.value, env)
+                # Explicitly check for StructInstantiation
+                if isinstance(node.value, StructInstantiation):
+                    if node.value.struct_name not in self.structs:
+                        raise NameError(f"Undefined struct '{node.value.struct_name}'")
+                    value = self.eval_expr(node.value, env)
+                else:
+                    value = self.eval_expr(node.value, env)
+                
                 self.check_type(node.name, value)
                 env[node.name] = value
             else:
@@ -527,29 +538,12 @@ class Interpreter:
 if __name__ == "__main__":
     # Debug test for init method
     test_code = '''
-class Dog():
+struct Dog():
     var name str
-    var age int
-    
-    func init(n, a):
-        say("Init called with:")
-        say(n)
-        say(a)
-        self.name = n
-        self.age = a
-        say("Init finished")
 
-    func bark():
-        say(self.name + " says woof!")
-
-say("Creating dog...")
-var pet = Dog("Buddy", 3)
-say("Dog created")
-pet.bark()
-say("Name:")
+var pet = Dog()
+pet.name = "Buddy"
 say(pet.name)
-say("Age:")
-say(pet.age)
 '''
 
     tokens = lexer(test_code)
