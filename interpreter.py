@@ -609,7 +609,14 @@ class Interpreter:
 if __name__ == "__main__":
     # Debug test for init method
     test_code = '''
+var Car{} = {
+    "name": "Corvette",
+    "year": 2000,
+    "color": "Yellow"
+}
 
+for key in Car:
+    say(key+": "+Car[key])
 '''
 
     try:
