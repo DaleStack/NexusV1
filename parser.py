@@ -774,7 +774,7 @@ class Parser:
             self.eat(tok_type)
             node = SelfRef()
             
-            # FIX: Handle member access and method calls for self too!
+            # Handle member access and method calls for self too!
             while True:
                 if self.current()[0] == "PUNCT" and self.current()[1] == ".":
                     self.eat("PUNCT", ".")
@@ -796,9 +796,15 @@ class Parser:
                 return self.parse_call_or_instantiation(tok_value)
             node = VarRef(tok_value)
             
-            # Handle member access and method calls
+            # Handle array indexing, member access and method calls
             while True:
-                if self.current()[0] == "PUNCT" and self.current()[1] == ".":
+                if self.current()[0] == "PUNCT" and self.current()[1] == "[":
+                    # Array indexing: var[index]
+                    self.eat("PUNCT", "[")
+                    index_expr = self.parse_expression()
+                    self.eat("PUNCT", "]")
+                    node = IndexExpr(node, index_expr)
+                elif self.current()[0] == "PUNCT" and self.current()[1] == ".":
                     self.eat("PUNCT", ".")
                     _, member = self.eat("ID")
                     
@@ -865,12 +871,8 @@ if __name__ == "__main__":
     from lexer import lexer
     
     test_code = '''
-struct Dog():
-    var name str
-
-var pet = Dog()
-pet.name = "Buddy"
-say(pet.name)
+var fruits[] = ["Apple", "Banana", "Cherry"]
+say(fruits[0])
 '''
     
     print("=== TESTING CLASS SUPPORT ===")
