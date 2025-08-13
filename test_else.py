@@ -3,11 +3,10 @@ from parser import Parser
 from interpreter import Interpreter
 
 code = '''
-var Car{} = {
-    "name": "Corvette"
-}
-for key in Car:
-    say(Car[key])
+var fruits[] str = ["Apple", "Orange", "Banana"]
+
+for fruit in fruits:
+    say(fruit)
 '''
 
 tokens = lexer(code)
