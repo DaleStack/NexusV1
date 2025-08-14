@@ -622,23 +622,22 @@ say("Point coordinates: " + p1.x + ", " + p1.y)
 
 # Test 18: Classes
 class Animal():
+    var type str
     var name str
     var age int
+    var sound str
     
-    func init(n, a):
+    func init(t, n, a, s):
+        self.type = t
         self.name = n
         self.age = a
+        self.sound = s
     
     func speak():
-        say("Animal sound!")
+        say(self.sound + " I am " + self.name)
 
-class Dog(Animal):
-    func speak():
-        say("Woof! My name is " + self.name)
-
-var my_dog = Dog("Buddy", 3)
-my_dog.speak()
-say(my_dog.name + " is " + my_dog.age + " years old")
+var dog = Animal("Dog", "Buddy", 3, "Woof Woof")
+dog.speak()
 '''
 
     try:
