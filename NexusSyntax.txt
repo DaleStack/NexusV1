@@ -66,9 +66,8 @@ var b = 30
 
 if a < b:
     say("A is less than B")
-else:
-    if a > b:
-        say("A is greater than B")
+else if a > b:
+    say("A is greater than B")
 else: 
     say("Both variables are equal")
 

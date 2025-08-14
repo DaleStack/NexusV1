@@ -1,4 +1,4 @@
-from lexer import lexer
+from .lexer import lexer
 
 class SyntaxErrorWithContext(Exception):
     """Custom syntax error with friendly messaging and context"""

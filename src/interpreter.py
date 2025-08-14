@@ -1,6 +1,6 @@
 from platform import node
-from lexer import lexer
-from parser import (
+from .lexer import lexer
+from .parser import (
     Parser, Literal, SyntaxErrorWithContext, VarRef, BinaryOp, VarDecl, SayStmt, IfStmt, ForStmt,
     BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt,
     ArrayLiteral, IndexExpr, AssignIndexStmt, ForEachStmt, DictLiteral,

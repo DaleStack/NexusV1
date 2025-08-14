@@ -1,6 +1,6 @@
-from lexer import lexer
-from parser import Parser
-from interpreter import Interpreter
+from .lexer import lexer
+from .parser import Parser
+from .interpreter import Interpreter
 
 code = '''
 # Test 8: Basic for loop
