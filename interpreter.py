@@ -505,6 +505,8 @@ class Interpreter:
 
             else:
                 raise TypeError(f"Unknown statement node: {node}")
+        except (BreakException, ContinueException):
+            raise  # Re-raise control flow exceptions unchanged
         except SyntaxErrorWithContext:
             raise
         except NameError as e:
@@ -585,8 +587,7 @@ class Interpreter:
                 except BreakException:
                     break
                 except ContinueException:
-                    i += step
-                    continue
+                    pass  # Just continue to the increment
                 i += step
 
     def run(self, ast):
@@ -609,14 +610,35 @@ class Interpreter:
 if __name__ == "__main__":
     # Debug test for init method
     test_code = '''
-var Car{} = {
-    "name": "Corvette",
-    "year": 2000,
-    "color": "Yellow"
-}
+# Test 17: Structs
+struct Point():
+    var x int
+    var y int
 
-for key in Car:
-    say(key+": "+Car[key])
+var p1 = Point()
+p1.x = 10
+p1.y = 20
+say("Point coordinates: " + p1.x + ", " + p1.y)
+
+# Test 18: Classes
+class Animal():
+    var name str
+    var age int
+    
+    func init(n, a):
+        self.name = n
+        self.age = a
+    
+    func speak():
+        say("Animal sound!")
+
+class Dog(Animal):
+    func speak():
+        say("Woof! My name is " + self.name)
+
+var my_dog = Dog("Buddy", 3)
+my_dog.speak()
+say(my_dog.name + " is " + my_dog.age + " years old")
 '''
 
     try:

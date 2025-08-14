@@ -34,7 +34,7 @@ KEYWORDS = {
     "false": "BOOLEAN",    
     "in": "IN", 
     "to": "TO",
-    "struct": "STRUCT",  # NEW: struct keyword
+    "struct": "STRUCT", 
     "class": "CLASS",
     "self": "SELF",
     # Type keywords
