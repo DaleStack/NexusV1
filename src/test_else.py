@@ -3,9 +3,6 @@ from .parser import Parser
 from .interpreter import Interpreter
 
 code = '''
-for i in (0 to 5 by 1):
-    say(i)
-
 
 '''
 

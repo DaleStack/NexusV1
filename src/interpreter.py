@@ -99,39 +99,42 @@ class Interpreter:
         self.current_line = 1    # Track error line
 
 
-    def error(self, message, line=None, hint=None, context=None):
-        """Raise a syntax error with friendly formatting"""
+    def error(self, message, line=None, hint=None, context=None, error_type=None):
+        """Raise an error with friendly formatting"""
         self.had_error = True
-        raise SyntaxErrorWithContext(
-            message,
-            line or self.current_line,
-            hint,
-            context
-        )
+        if error_type is None:
+            error_type = SyntaxErrorWithContext
+        
+        if error_type == SyntaxErrorWithContext:
+            raise error_type(
+                message,
+                line or self.current_line,
+                hint,
+                context
+            )
+        else:
+            raise error_type(message)
         
     
 
     def check_type(self, var_name, value):
-        """Check if value matches the declared type for variable"""
+        """Check if value matches declared type"""
         if var_name not in self.var_types:
-            return  # No type declared, allow anything
-        
+            return
+
         expected_type = self.var_types[var_name]
-        if expected_type is None:
-            return  # No type constraint
-            
-        # Map your language types to Python types
-        type_map = {
-            'str': str,
-            'int': int,
-            'float': float,
-            'bool': bool
+        if not expected_type:
+            return
+
+        type_check = {
+            'int': lambda x: isinstance(x, int),
+            'float': lambda x: isinstance(x, (int, float)),
+            'str': lambda x: isinstance(x, str),
+            'bool': lambda x: isinstance(x, bool)
         }
-        
-        if expected_type in type_map:
-            expected_python_type = type_map[expected_type]
-            if not isinstance(value, expected_python_type):
-                raise TypeError(f"Variable '{var_name}' expects {expected_type} but got {type(value).__name__}")
+
+        if expected_type in type_check and not type_check[expected_type](value):
+            raise TypeError(f"Expected {expected_type}, got {type(value).__name__}")
 
     def eval_expr(self, node, env=None):
         try:
@@ -313,17 +316,9 @@ class Interpreter:
         except SyntaxErrorWithContext:
             raise
         except NameError as e:
-            self.error(
-                str(e),
-                getattr(node, 'line_number', None),
-                "Make sure the variable is declared before use"
-            )
+            self.error(str(e), hint="Make sure variable exists", error_type=NameError)
         except TypeError as e:
-            self.error(
-                str(e),
-                getattr(node, 'line_number', None),
-                "Check that your types are compatible for this operation"
-            )
+            self.error(str(e), hint="Check types", error_type=TypeError)
         except Exception as e:
             self.error(
                 f"Error evaluating expression: {str(e)}",
@@ -332,6 +327,7 @@ class Interpreter:
             )
         
 
+    
     def exec_stmt(self, node, env=None):
         try:
             if env is None:
@@ -379,9 +375,9 @@ class Interpreter:
                     env[node.name] = value
                 else:
                     # Handle empty declarations
-                    if node.is_array:
+                    if hasattr(node, 'is_array') and node.is_array:
                         env[node.name] = []
-                    elif node.is_dict:
+                    elif hasattr(node, 'is_dict') and node.is_dict:
                         env[node.name] = {}
                     else:
                         env[node.name] = None
@@ -496,8 +492,8 @@ class Interpreter:
                 self.functions[node.name] = node
 
             elif isinstance(node, FuncCall):
-                # Call function and ignore return value here
-                self.exec_func_call(node, env)
+                # Call function and return its value
+                return self.exec_func_call(node, env)
 
             elif isinstance(node, ReturnStmt):
                 value = self.eval_expr(node.expr, env) if node.expr else None
@@ -505,28 +501,18 @@ class Interpreter:
 
             else:
                 raise TypeError(f"Unknown statement node: {node}")
-        except (BreakException, ContinueException):
+        except (BreakException, ContinueException, ReturnException):
             raise  # Re-raise control flow exceptions unchanged
         except SyntaxErrorWithContext:
-            raise
+            raise  # Re-raise parser errors unchanged - DON'T convert these
         except NameError as e:
-            self.error(
-                str(e),
-                getattr(node, 'line_number', None),
-                "Make sure the variable is declared before use"
-            )
+            raise NameError(str(e))  # Don't use self.error() here
         except TypeError as e:
-            self.error(
-                str(e),
-                getattr(node, 'line_number', None),
-                "Check that your types are compatible for this operation"
-            )
+            raise TypeError(str(e))   # Don't use self.error() here
         except Exception as e:
-            self.error(
-                f"Error executing statement: {str(e)}",
-                getattr(node, 'line_number', None),
-                "Check the statement syntax and surrounding context"
-            )
+            # Only use self.error for truly unexpected errors
+            print(f"DEBUG: Unexpected error in exec_stmt: {type(e).__name__}: {e}")
+            raise RuntimeError(f"Unexpected error: {str(e)}")
         
 
     def exec_func_call(self, node, caller_env=None):
@@ -535,23 +521,21 @@ class Interpreter:
 
         if node.name not in self.functions:
             raise NameError(f"Undefined function '{node.name}'")
+        
         func = self.functions[node.name]
-        if len(node.args) != len(func.params):
-            raise TypeError(f"Function '{node.name}' expects {len(func.params)} arguments, got {len(node.args)}")
-
-        # Use global env as parent so functions can access global functions & variables
         local_env = Env(parent=self.env)
 
-        for param, arg_expr in zip(func.params, node.args):
-            value = self.eval_expr(arg_expr, caller_env)
-            local_env[param] = value
+        # Set parameters
+        for param, arg in zip(func.params, node.args):
+            local_env[param] = self.eval_expr(arg, caller_env)
 
+        # Execute function body
         try:
             for stmt in func.body:
                 self.exec_stmt(stmt, local_env)
+            return None  # Default return if no return statement
         except ReturnException as ret:
-            return ret.value
-        return None
+            return ret.value  # Return the value from return statement
 
     def exec_for(self, node: ForStmt, env):
         if node.infinite:
@@ -592,52 +576,41 @@ class Interpreter:
 
     def run(self, ast):
         """Execute the AST while preserving parser error formatting"""
+        stmt = None  # Initialize stmt variable
         try:
             for stmt in ast:
                 self.current_line = getattr(stmt, 'line_number', None) or self.current_line
-                self.exec_stmt(stmt)
+                result = self.exec_stmt(stmt)
+        except (ReturnException, BreakException, ContinueException):
+            raise  # Re-raise control flow exceptions
         except SyntaxErrorWithContext:
             raise  # Re-raise parser errors unchanged
         except Exception as e:
             # Convert other errors to our friendly format
+            stmt_info = "unknown statement"
+            if stmt is not None:
+                try:
+                    stmt_info = f"{type(stmt).__name__} at line {self.current_line}"
+                except:
+                    pass
+                    
             self.error(
                 f"Runtime error: {str(e)}",
                 hint="This error occurred while executing your program",
-                context=f"While executing {type(stmt).__name__} at line {self.current_line}"
+                context=f"While executing {stmt_info}"
             )
 
 
 if __name__ == "__main__":
     # Debug test for init method
     test_code = '''
-# Test 17: Structs
-struct Point():
-    var x int
-    var y int
 
-var p1 = Point()
-p1.x = 10
-p1.y = 20
-say("Point coordinates: " + p1.x + ", " + p1.y)
+var fruits[] = ["apple", "banana", "orange"]
 
-# Test 18: Classes
-class Animal():
-    var type str
-    var name str
-    var age int
-    var sound str
-    
-    func init(t, n, a, s):
-        self.type = t
-        self.name = n
-        self.age = a
-        self.sound = s
-    
-    func speak():
-        say(self.sound + " I am " + self.name)
+say(fruits[0])
 
-var dog = Animal("Dog", "Buddy", 3, "Woof Woof")
-dog.speak()
+for fruit in fruits:
+    say(fruit)
 '''
 
     try:
