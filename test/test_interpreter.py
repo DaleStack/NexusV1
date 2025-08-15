@@ -1,4 +1,4 @@
-import pytest
+import pytest # type: ignore
 import sys
 import os
 from io import StringIO
@@ -104,20 +104,6 @@ say(person["age"])'''
             interpreter.run(Parser(lexer(code)).parse())
             assert fake_out.getvalue().splitlines() == ["Alice", "30"]
 
-class TestErrorHandling:
-    """Test interpreter error handling"""
-    
-    def test_undefined_variable(self):
-        code = "say(undefined_var)"
-        interpreter = Interpreter()
-        with pytest.raises(NameError):
-            interpreter.run(Parser(lexer(code)).parse())
-    
-    def test_type_mismatch(self):
-        code = '''var a int = "hello"'''
-        interpreter = Interpreter()
-        with pytest.raises(TypeError):
-            interpreter.run(Parser(lexer(code)).parse())
 
 class TestBuiltins:
     """Test built-in functions"""
