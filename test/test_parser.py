@@ -997,7 +997,6 @@ class TestEdgeCases:
         tokens = lexer(code)  
         parser = Parser(tokens)
         
-        # This might fail if 'pass' isn't implemented
         try:
             ast = parser.parse()
             assert isinstance(ast[0], FuncDecl)
@@ -1080,7 +1079,7 @@ class TestStressScenarios:
         assert len(ast[0].value.elements) == 100
     
     def test_many_variable_declarations(self):
-        # Create many variable declarations
+       
         lines = [f'var var{i} = {i}' for i in range(50)]
         code = '\n'.join(lines)
         
