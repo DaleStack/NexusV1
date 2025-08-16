@@ -1,0 +1,3 @@
+var test = ask("What is your name? ")
+
+say("Hello, "+test+"! I am your personal chatbot!")

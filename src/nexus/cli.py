@@ -2,9 +2,9 @@
 import sys
 import argparse
 from pathlib import Path
-from .lexer import lexer
-from .parser import Parser
-from .interpreter import Interpreter
+from nexus.lexer import lexer
+from nexus.parser import Parser
+from nexus.interpreter import Interpreter
 
 def validate_file_extension(file_path):
     """Validate the file has .nx extension"""
@@ -44,9 +44,11 @@ def main():
         epilog='Example: nexus sample.nx'
     )
     
+    # Make script argument optional when -v is used
     parser.add_argument(
         'script',
         metavar='SCRIPT.nx',
+        nargs='?',  # Makes this argument optional
         help='NexusV1 script file to execute (must have .nx extension)'
     )
     
@@ -59,9 +61,13 @@ def main():
     args = parser.parse_args()
     
     if args.version:
-        from . import __version__
+        from nexus import __version__
         print(f"NexusV1 v{__version__}")
         sys.exit(0)
+        
+    if not args.script:
+        parser.print_help()
+        sys.exit(1)
         
     run_script(args.script)
 

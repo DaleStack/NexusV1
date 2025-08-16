@@ -3,48 +3,53 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "nexus"  
-version = "0.1.0"  
+name = "nexus"
+version = "0.1.0"
 authors = [
     {name = "Dale Siatong", email = "daledev07@gmail.com"},
 ]
-description = "Your package description"
+description = "NexusV1 Language Interpreter for .nx script files"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {file = "LICENSE"} 
+license = {file = "LICENSE"}
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Interpreters"
 ]
-keywords = ["nexus", "beginner-friendly", "interpreter"]
+keywords = ["nexus", "interpreter", "language", "scripting"]
 dependencies = [
-    colorama==0.4.6
-    iniconfig==2.1.0
-    packaging==25.0
-    pluggy==1.6.0
-    Pygments==2.19.2
-    pytest==8.4.1
+    "colorama>=0.4.6",
+    "Pygments>=2.19.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.1",
+    "iniconfig>=2.1.0",
+    "pluggy>=1.6.0",
+    "packaging>=25.0"
 ]
 
 [project.urls]
 Homepage = "https://github.com/DaleStack/NexusV1"
 Documentation = "https://github.com/DaleStack/NexusV1/blob/main/README.md"
 Issues = "https://github.com/DaleStack/NexusV1/issues"
+Changelog = "https://github.com/DaleStack/NexusV1/releases"
 
-# Entry points for CLI
 [project.scripts]
-nexus = "nexus.cli:main" 
+nexus = "nexus.cli:main"  # This assumes the package is named 'nexus'
 
-# Package discovery
+# Critical fixes below
+[tool.hatch.build]
+include = ["src/nexus"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["nexus"]
+packages = ["src/nexus"]
 
-# Include additional files
 [tool.hatch.build.targets.sdist]
 include = [
     "src/nexus/*",
@@ -52,4 +57,5 @@ include = [
     "README.md",
     "LICENSE",
     "pyproject.toml",
+
 ]
