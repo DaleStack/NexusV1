@@ -1,5 +1,5 @@
 import pytest #type: ignore
-from src.lexer import lexer, TOKEN_SPEC, KEYWORDS, OPERATORS
+from src.nexus.lexer import lexer, TOKEN_SPEC, KEYWORDS, OPERATORS
 
 class TestBasicTokens:
     """Test basic token recognition"""

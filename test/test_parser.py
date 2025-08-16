@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from src.parser import (
+from src.nexus.parser import (
     Parser, SyntaxErrorWithContext,
     VarDecl, SayStmt, IfStmt, BinaryOp, Literal, VarRef, ForStmt, 
     BreakStmt, ContinueStmt, AskStmt, FuncDecl, FuncCall, ReturnStmt,
@@ -13,7 +13,7 @@ from src.parser import (
     StructDecl, StructInstantiation, MemberAccess, MemberAssignment,
     ClassDecl, MethodDecl, ClassInstantiation, MethodCall, SelfRef
 )
-from src.lexer import lexer
+from src.nexus.lexer import lexer
 
 
 class TestBasicVariableDeclarations:

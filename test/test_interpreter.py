@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from src.interpreter import Interpreter
-from src.parser import Parser
-from src.lexer import lexer
+from src.nexus.interpreter import Interpreter
+from src.nexus.parser import Parser
+from src.nexus.lexer import lexer
 
 class TestInterpreterBasicOperations:
     """Test basic interpreter operations"""
